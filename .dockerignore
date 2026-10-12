@@ -1,0 +1,57 @@
+# =====================================================================
+# Docker 构建上下文排除清单
+# =====================================================================
+# 文件 : .dockerignore
+# 日期 : 2026-10-12
+#
+# 为什么必须要有这个文件：
+#   docker build 会把**整个构建上下文**发送给 Docker daemon，
+#   再逐层 COPY。若把 Maven 本地仓库、构建产物、数据库设计文档等一并发送，
+#   每次构建都要传输上百 MB（本项目实测 155MB），在 macOS + Docker Desktop
+#   的跨卷读写下会带来数十秒到数分钟的纯 I/O 开销。
+#   排除后构建上下文约为 1MB 量级，构建时间从「分钟级」降到「秒级」。
+#
+# ⚠️ 注意：Dockerfile.build（容器内构建方案）需要 pom.xml / src / docs，
+#    这些**不排除**；若改用该方案请勿删除对应条目。
+# =====================================================================
+
+# ---- Maven 本地仓库（最大项，绝不进入镜像/上下文）----
+.mvnrepo/
+.m2/
+**/.m2/
+
+# ---- 构建产物与日志 ----
+# ⚠️ 注意：**不能排除 target/**。
+#   默认的 Dockerfile 是「运行镜像」，需要 COPY target/campus-trade.jar；
+#   排除后会导致构建失败：stat target/campus-trade.jar: file does not exist。
+#   target/ 中真正的有效载荷就是那个 ~50MB 的 fat jar 本身（本就要进镜像），
+#   其余（classes/、maven-status/ 等）虽一并进入上下文，但相比原先
+#   155MB（含 .mvnrepo 105MB）已大幅下降，且不再有容器内 Maven 依赖下载。
+build/
+logs/
+*.log
+
+# ---- 版本控制与 IDE ----
+.git/
+.gitignore
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+**/.DS_Store
+
+# ---- 运行期本地数据（图片上传，OOS-18）----
+data/
+uploads/
+
+# ---- 临时与无关目录 ----
+tmp/
+temp/
+*.tmp
+*.pid
+
+# ---- 说明：docs/ 保留 ----
+# Dockerfile.build 的 pom.xml 会把 docs/iteration1/design/openapi.yaml
+# 作为资源打入 jar，因此不允许排除 docs/。

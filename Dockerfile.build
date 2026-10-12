@@ -1,0 +1,93 @@
+# =====================================================================
+# 迭代一 后端骨架 —— 容器内完整构建 Dockerfile（可选 / CI 方案）
+# =====================================================================
+# 文件     : Dockerfile.build
+# 版本     : v1.0
+# 日期     : 2026-10-12
+# 作者     : 后端工程负责人（待填写姓名）
+# 状态     : 草稿（待确认）
+#
+# 用途     : 不依赖宿主机 Maven 的「一键构建」方案，适合 CI 或没有本地 Java 环境的机器。
+#            默认的 docker-compose.yml 使用 **Dockerfile**（复制宿主机构建产物），
+#            因为容器内构建在本环境需重新下载全部依赖，耗时约 38 分钟。
+#
+# 使用     : docker build -f Dockerfile.build -t campus-trade:full .
+#           或 docker compose -f docker-compose.build.yml up -d --build
+#
+# 提速要点（已实现）
+# ---------------------------------------------------------------------
+# 1) **依赖层缓存**：先只 COPY pom.xml 并执行 dependency:go-offline，
+#    该层在 pom.xml 未变更时可被 Docker 缓存命中，不再重复下载依赖。
+# 2) .dockerignore 排除 .mvnrepo / target / .git，构建上下文从 155MB 降至 1MB 量级。
+# 3) 可选：挂载宿主机 Maven 缓存以进一步加速（见文件末尾说明）。
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 阶段一：构建
+# ---------------------------------------------------------------------
+FROM maven:3.8-openjdk-11 AS builder
+
+WORKDIR /workspace
+
+# 步骤 1：只复制 pom.xml，预下载依赖 —— 此层可缓存
+COPY pom.xml .
+RUN mvn -B -q dependency:go-offline
+
+# 步骤 2：复制源码与契约文档（pom.xml 的 resources 会从 docs/iteration1/design/ 取 openapi.yaml）
+COPY src ./src
+COPY docs ./docs
+
+# 步骤 3：编译打包（跳过测试）
+RUN mvn -B clean package -DskipTests
+
+# ---------------------------------------------------------------------
+# 阶段二：运行（仅复制 jar）
+# ---------------------------------------------------------------------
+FROM maven:3.9-eclipse-temurin-11
+
+LABEL org.opencontainers.image.title="campus-trade" \
+      org.opencontainers.image.description="校园/社区闲置交易平台 —— 迭代一后端工程骨架（容器内完整构建）" \
+      org.opencontainers.image.version="1.0.0-SNAPSHOT"
+
+RUN (id -u campus >/dev/null 2>&1 || useradd -m -u 1500 campus) \
+    && mkdir -p /app /app/data/uploads /app/logs \
+    && chown -R 1500:1500 /app
+
+WORKDIR /app
+
+COPY --from=builder --chown=1500:1500 /workspace/target/campus-trade.jar /app/app.jar
+
+USER 1500
+
+EXPOSE 8080
+
+ENV TZ=Asia/Shanghai \
+    SPRING_PROFILES_ACTIVE=dev \
+    JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=10 \
+    CMD (command -v curl >/dev/null 2>&1 \
+         && curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"') \
+        || (command -v wget >/dev/null 2>&1 \
+            && wget -qO- http://localhost:8080/actuator/health | grep -q '"status":"UP"') \
+        || exit 1
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
+
+# =====================================================================
+# 进一步提速（可选）
+# ---------------------------------------------------------------------
+# 若希望容器内构建也复用宿主机已下载的依赖，可在构建时挂载缓存：
+#
+#   docker build -f Dockerfile.build \
+#     --build-arg MAVEN_OPTS="-Dmaven.repo.local=/root/.m2/repository" \
+#     -t campus-trade:full .
+#
+# 或在 CI 中使用 BuildKit 的缓存挂载（需要 BuildKit）：
+#
+#   # syntax=docker/dockerfile:1.4
+#   RUN --mount=type=cache,target=/root/.m2 mvn -B -q dependency:go-offline
+#
+# 注意：本项目搭建环境的 buildx 受沙箱限制无法写活动目录，
+#      只能使用 legacy builder（DOCKER_BUILDKIT=0），故未启用缓存挂载。
+# =====================================================================

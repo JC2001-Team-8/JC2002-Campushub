@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  =====================================================================
+  迭代一 后端工程骨架 —— Maven 构建描述
+  =====================================================================
+  项目     : 校园/社区闲置交易平台（campus-trade）
+  版本     : 1.0.0-SNAPSHOT
+  日期     : 2026-10-12
+  作者     : 后端工程负责人（待填写姓名）
+  状态     : 草稿（待确认）
+  技术栈   : Java 11 + Spring Boot 2.7.18 + PostgreSQL 15（固定，不可变更）
+  依据文档 : docs/iteration1/design/api-freeze.md（接口契约冻结）
+             docs/iteration1/design/api-contract.md
+             docs/iteration1/design/error-codes.md
+             README-backend.md
+
+  说明     : 本步骤只搭「工程骨架」——不实现业务逻辑，不生成 83 个
+             operationId 对应的 Controller（下一步按契约生成）。
+  =====================================================================
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Spring Boot 2.7.18：迭代一固定版本 -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.18</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.jc2001</groupId>
+    <artifactId>campus-trade</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>campus-trade</name>
+    <description>校园/社区闲置交易平台 —— 迭代一后端工程骨架</description>
+
+    <properties>
+        <!-- Java 11（固定） -->
+        <java.version>11</java.version>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- springdoc-openapi 1.7.0：兼容 Spring Boot 2.7.x -->
+        <springdoc.version>1.7.0</springdoc.version>
+
+        <!-- JWT 骨架依赖：jjwt 0.11.5（拆分为 api/impl/jackson 三件） -->
+        <jjwt.version>0.11.5</jjwt.version>
+
+        <!-- flyway-core 版本由 Spring Boot 2.7.18 父 POM 统一管理（8.5.x），此处不覆盖 -->
+    </properties>
+
+    <dependencies>
+        <!-- ============================ Web ============================ -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- ========================== Security ========================= -->
+        <!-- 提供 Spring Security 过滤链骨架；本步骤暂时 permitAll，见 SecurityConfig 的 TODO -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- ============================ 持久化 ========================== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- ============================ 参数校验 ======================== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- ============================ 健康检查 ======================== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- ============================ Flyway ========================= -->
+        <!-- 启动时自动执行 classpath:db/migration 下的 V1~V4（不得修改已执行脚本） -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
+        <!-- ============================ PostgreSQL ===================== -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ============================ OpenAPI / Swagger UI =========== -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- ============================ JWT 骨架 ======================= -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ============================ 开发便利（可选） ================= -->
+        <!-- spring-boot-devtools 仅开发期使用，打包时不进入产物 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ============================ 配置元数据 ====================== -->
+        <!-- 为 app.* 自定义配置生成 IDE 提示（可选） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ============================ 测试 =========================== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>campus-trade</finalName>
+
+        <resources>
+            <!-- 常规资源 -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+            </resource>
+            <!--
+              把已冻结的接口契约 docs/iteration1/design/openapi.yaml 打入 jar，
+              供 OpenAPI 配置引用（classpath:openapi/openapi.yaml）。
+              重要：这只是「复制参考文档」，**不修改**契约文件本身。
+            -->
+            <resource>
+                <directory>docs/iteration1/design</directory>
+                <targetPath>openapi</targetPath>
+                <includes>
+                    <include>openapi.yaml</include>
+                </includes>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
+
+        <plugins>
+            <!-- 编译插件：强制 Java 11 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                    <encoding>UTF-8</encoding>
+                    <compilerArgs>
+                        <arg>-Xlint:all,-processing</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+
+            <!-- 单元测试：骨架阶段不编写业务测试，交由后续步骤补齐（使用 -DskipTests 跳过） -->
+
+            <!-- Spring Boot 可执行 jar 打包 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.jc2001.campustrade.CampusTradeApplication</mainClass>
+                    <layers>
+                        <!-- 分层打包：配合 Dockerfile 提升镜像缓存命中率 -->
+                        <enabled>true</enabled>
+                    </layers>
+                </configuration>
+            </plugin>
+
+            <!--
+              Flyway Maven 插件：便于在 CI/本地手工执行迁移（可选）。
+              版本与 flyway-core 保持一致，统一由父 POM 管理。
+            -->
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <configuration>
+                    <locations>
+                        <location>filesystem:src/main/resources/db/migration</location>
+                    </locations>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
