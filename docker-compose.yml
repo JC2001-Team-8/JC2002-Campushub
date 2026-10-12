@@ -1,0 +1,146 @@
+# =====================================================================
+# 迭代一 Docker Compose —— PostgreSQL 15 + 后端应用
+# =====================================================================
+# 文件   : docker-compose.yml
+# 版本   : v2.0
+# 日期   : 2026-10-12
+# 作者   : 后端工程负责人（待填写姓名）
+# 状态   : 草稿（待确认）
+#
+# 变更说明（v1.0 → v2.0）
+# ---------------------------------------------------------------------
+# v1.0 仅包含 PostgreSQL 15（数据库迁移验证用），数据库名为 jc2001。
+# v2.0 按迭代一「后端工程骨架」步骤要求：
+#   1. 数据库名/用户/密码统一为 **campus_trade**（见下方 postgres.environment）
+#   2. 新增 **app** 服务：构建本目录的 Dockerfile，依赖 postgres 健康检查，
+#      启动时由 Flyway 自动执行 V1~V4，暴露 8080
+#   3. app 通过服务名 `postgres` 访问数据库（容器内网，不经过宿主机端口）
+#
+# ⚠️ 数据库凭据由 jc2001 改为 campus_trade
+#    若你此前用 v1.0 启动过 jc2001 数据卷，数据卷中的 role/database 仍是旧值
+#    （POSTGRES_* 仅在数据卷为空时生效）。请按 README-backend.md §6.4 处理：
+#       docker compose down -v     # 删除旧数据卷后重新初始化
+#
+# 常用命令
+# ---------------------------------------------------------------------
+#   启动全部   : docker compose up -d --build
+#                ⚠️ 前置：先在宿主机执行 `mvn clean package -DskipTests`
+#                   （app 镜像只复制 target/campus-trade.jar，不在容器内构建）
+#   仅启动数据库: docker compose up -d postgres
+#   查看状态   : docker compose ps
+#   查看日志   : docker compose logs -f app
+#   停止       : docker compose down
+#   清库重来   : docker compose down -v      # ⚠️ 删除数据卷，Flyway 需重新执行
+#
+# 端口说明
+# ---------------------------------------------------------------------
+#   postgres 宿主机端口: **5432**（任务默认值）
+#     - 若宿主机 5432 已被占用（本项目搭建时即遇到无关容器占用 5432），
+#       可用环境变量覆盖，例如：POSTGRES_HOST_PORT=55432 docker compose up -d
+#       （app 容器内部始终用 postgres:5432，不受此影响）
+#   app 宿主机端口: **8080**
+#     - 同样可用 APP_HOST_PORT 覆盖
+# =====================================================================
+
+name: jc2001
+
+services:
+
+  # ===================================================================
+  # PostgreSQL 15
+  # ===================================================================
+  postgres:
+    image: postgres:15
+    container_name: jc2001-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: campus_trade
+      POSTGRES_USER: campus_trade
+      POSTGRES_PASSWORD: campus_trade
+      # UTF8 编码与 locale（官方镜像默认可用值）
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+      # 统一时区，与 R-19「服务端时间为准」保持一致（假设 A-20 Asia/Shanghai）
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
+    ports:
+      # ⚠️ 宿主机端口可覆盖：POSTGRES_HOST_PORT=55432 docker compose up -d
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      # 数据卷：容器重建后数据仍在；`docker compose down -v` 可彻底清空
+      - jc2001_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # app 服务通过 service_healthy 依赖本检查，确保数据库就绪后再启动应用
+      test: ["CMD-SHELL", "pg_isready -U campus_trade -d campus_trade"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    command:
+      - "postgres"
+      - "-c"
+      - "timezone=Asia/Shanghai"
+      # 记录慢查询，便于后续接口实现阶段排查
+      - "-c"
+      - "log_min_duration_statement=500"
+
+  # ===================================================================
+  # 后端应用（Spring Boot 骨架）
+  #   - 构建：本目录 Dockerfile（多阶段）
+  #   - 启动时 Flyway 自动执行 V1~V4（见 db/migration）
+  #   - 健康检查：/actuator/health 返回 {"status":"UP"}
+  # ===================================================================
+  app:
+    # 默认使用 Dockerfile（**运行镜像**：仅复制宿主机已打好的 jar，不做 Maven 构建，秒级完成）
+    #   前置：先在宿主机执行 `mvn clean package -DskipTests`
+    #   原因：容器内全新构建需重新下载全部依赖，本环境实测约 38 分钟
+    #
+    # 若需要「容器内一键构建」（CI / 无本地 Java 环境），改用：
+    #   docker build -f Dockerfile.build -t campus-trade:full .
+    #   或 docker compose -f docker-compose.build.yml up -d --build
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: campus-trade:1.0.0-SNAPSHOT
+    container_name: jc2001-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        # 等 postgres 健康后再启动，避免 Flyway 连接失败导致启动中断
+        condition: service_healthy
+    environment:
+      # ---- 数据源：容器内网使用服务名 postgres，端口 5432 ----
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/campus_trade
+      SPRING_DATASOURCE_USERNAME: campus_trade
+      SPRING_DATASOURCE_PASSWORD: campus_trade
+      # ---- Flyway：启动时自动迁移（默认 true）----
+      FLYWAY_ENABLED: "true"
+      # ---- 运行 profile ----
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # ---- 应用端口 ----
+      SERVER_PORT: "8080"
+      # ---- JWT 占位密钥（生产必须通过密钥管理注入，禁止使用默认值）----
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-CHANGE_ME_dev_only_placeholder_secret_at_least_32_bytes_long}
+      APP_INTERNAL_TOKEN: ${APP_INTERNAL_TOKEN:-CHANGE_ME_dev_only_internal_token}
+      # ---- 时区（假设 A-20）----
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8"
+    ports:
+      # ⚠️ 宿主机端口可覆盖：APP_HOST_PORT=8081 docker compose up -d
+      - "${APP_HOST_PORT:-8080}:8080"
+    volumes:
+      # 上传文件本地存储（OOS-18：不使用对象存储/CDN）
+      - campus_trade_uploads:/app/data/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+volumes:
+  # 数据库数据卷（沿用 v1.0 的名称，便于识别）
+  jc2001_pgdata:
+    name: jc2001_pgdata
+  # 上传文件卷（本地存储，OOS-18）
+  campus_trade_uploads:
+    name: campus_trade_uploads

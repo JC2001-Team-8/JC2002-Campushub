@@ -1,0 +1,265 @@
+# =====================================================================
+# 迭代一 后端工程骨架 —— 主配置
+# =====================================================================
+# 文件     : src/main/resources/application.yml
+# 版本     : v1.0
+# 日期     : 2026-10-12
+# 作者     : 后端工程负责人（待填写姓名）
+# 状态     : 草稿（待确认）
+#
+# 技术栈   : Java 11 + Spring Boot 2.7.18 + PostgreSQL 15（固定）
+# 依据文档 : docs/iteration1/design/api-freeze.md（接口契约冻结）
+#            docs/iteration1/design/api-contract.md §5（全局约定）
+#            docs/iteration1/design/db-verification.md（迁移 V1~V4）
+#
+# 约定     : 本文件只放**与环境无关**的配置；敏感值与环境差异放环境变量。
+#            所有占位配置集中在 `app.*` 段，不得散落隐式默认（见文件末尾）。
+# =====================================================================
+
+spring:
+  application:
+    name: campus-trade
+
+  # ---------------------------------------------------------------------
+  # 数据源
+  #   数据库名/用户/密码通过环境变量注入，默认值仅用于本地开发。
+  #   注意：docker compose 中 app 容器的 host 为 `postgres`（服务名），
+  #        由 docker-compose.yml 用 SPRING_DATASOURCE_URL 覆盖。
+  # ---------------------------------------------------------------------
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/campus_trade}
+    username: ${SPRING_DATASOURCE_USERNAME:campus_trade}
+    password: ${SPRING_DATASOURCE_PASSWORD:campus_trade}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: campus-trade-pool
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 30000
+      validation-timeout: 5000
+      # 连接泄漏检测（开发期便于发现未关闭连接）
+      leak-detection-threshold: 60000
+
+  # ---------------------------------------------------------------------
+  # JPA / Hibernate
+  #   ddl-auto=validate：表结构**只由 Flyway 管理**，Hibernate 不得改动；
+  #   由于骨架阶段尚未创建 @Entity，validate 不会失败（无实体即无校验目标）。
+  #   open-in-view=false：避免在视图层持有 Session（配合 R-18 的条件更新风格）。
+  # ---------------------------------------------------------------------
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+        jdbc:
+          time_zone: Asia/Shanghai   # 与数据库/契约时区一致（假设 A-20）
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  # ---------------------------------------------------------------------
+  # Flyway
+  #   启动时自动执行 classpath:db/migration 下的 V1~V4。
+  #   ⚠️ 严禁修改已执行过的迁移脚本（checksum 会不一致导致启动失败）；
+  #      任何变更必须新增 V5+，见 docs/iteration1/design/db-verification.md §8。
+  # ---------------------------------------------------------------------
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+    # 目标库为空时会自动建表并执行全部迁移；生产环境按需设 false 并手工 baseline
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
+    baseline-version: 0
+    baseline-description: campus-trade baseline
+    # 校验 checksum；发现脚本被改动立即失败而不是静默继续
+    validate-on-migrate: true
+    out-of-order: false
+    # 迁移失败时立即中断启动（避免半迁移状态被误认为可用）
+    fail-on-missing-locations: true
+    placeholder-replacement: false
+
+  # ---------------------------------------------------------------------
+  # 生命周期
+  # ---------------------------------------------------------------------
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+  # ---------------------------------------------------------------------
+  # Jackson（与 JacksonConfig 呼应；时间统一 ISO 8601 UTC，见 AD-05）
+  # ---------------------------------------------------------------------
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: UTC
+    date-format: yyyy-MM-dd'T'HH:mm:ss'Z'
+    serialization:
+      write-dates-as-timestamps: false
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+    mapper:
+      accept-case-insensitive-enums: false
+
+  # ---------------------------------------------------------------------
+  # 静态资源 / 上传（OOS-18：本地目录存储，不使用对象存储）
+  # ---------------------------------------------------------------------
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB        # 假设 A-05：单张 ≤5MB
+      max-request-size: 50MB    # 一次最多上传 9 张 + 表单开销
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: true
+
+# =====================================================================
+# 服务器
+# =====================================================================
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+  compression:
+    enabled: true
+    mime-types: application/json
+  tomcat:
+    max-http-form-post-size: 50MB
+    threads:
+      max: 200
+      min-spare: 10
+  # 优雅停机：等待在途请求完成
+  shutdown: graceful
+
+# =====================================================================
+# Actuator（健康检查）
+# =====================================================================
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        # 只暴露 health 与 info（迭代一范围；其余端点按需在后续步骤开放）
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+      # 自定义健康分组：readiness 纳入数据库连通性
+      # （不覆盖内置 liveness/readiness 组，避免与 probes 冲突）
+      group:
+        db-readiness:
+          include: db
+          show-details: always
+  health:
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+  info:
+    env:
+      enabled: true
+
+# =====================================================================
+# springdoc-openapi / Swagger UI
+#   - api-docs  : /v3/api-docs
+#   - swagger-ui: /swagger-ui.html
+#   已冻结的契约文档同时以静态资源方式提供：/openapi/openapi.yaml
+#   （由 pom.xml 从 docs/iteration1/design/openapi.yaml 打入 classpath:openapi/）
+# =====================================================================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    # 默认展示**代码生成的运行时文档**（/v3/api-docs）：
+    # 第五步已按契约生成 83 个 operationId 的 Controller 骨架，
+    # 因此运行时文档即包含全部 83 个操作（验收标准 3）。
+    disable-swagger-default-url: true
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: false   # 骨架阶段业务方法统一抛 UnsupportedOperationException
+    # 同时把**已冻结契约**作为外部文档列出，便于对照（其 servers 前缀为 /api/v1）
+    urls:
+      - name: "迭代一契约（冻结候选 1.0.0-frozen-candidate）"
+        url: /openapi/openapi.yaml
+      - name: "运行时文档（代码生成，83 个操作）"
+        url: /v3/api-docs
+    urls-primary-name: "运行时文档（代码生成，83 个操作）"
+  packages-to-scan: com.jc2001.campustrade.controller
+  paths-to-match: /**
+  show-actuator: false
+
+# =====================================================================
+# 日志
+# =====================================================================
+logging:
+  level:
+    root: INFO
+    com.jc2001.campustrade: INFO
+    org.springframework.security: INFO
+    org.flywaydb: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# =====================================================================
+# 自定义配置占位（全部集中于此，便于下一步替换为真实实现）
+#   ⚠️ 全部为**占位值**，禁止用于生产；生产必须通过环境变量注入。
+# =====================================================================
+app:
+  # 迭代信息（/actuator/info 展示）
+  iteration: iteration-1
+  api-version: 1.0.0-frozen-candidate
+
+  jwt:
+    # 【待确认 Q-07】仅固定 7 天令牌（假设 A-06）；生产必须用环境变量覆盖
+    secret: ${APP_JWT_SECRET:CHANGE_ME_dev_only_placeholder_secret_at_least_32_bytes_long}
+    # 7 天 = 604800 秒（假设 A-06 / R-01）
+    expiration-seconds: ${APP_JWT_EXPIRATION_SECONDS:604800}
+    issuer: campus-trade
+    header: Authorization
+    prefix: "Bearer "
+    # 【待确认 Q-07】refresh token 当前未启用（契约返回 501 COMMON_NOT_IMPLEMENTED）
+    refresh-enabled: false
+
+  # 内部接口凭证（/internal/** 定时任务专用，见 AD-18 / api-permission-mapping.md §6）
+  internal:
+    token: ${APP_INTERNAL_TOKEN:CHANGE_ME_dev_only_internal_token}
+    header: X-Internal-Token
+    # 网关层应禁止外部访问 /internal/ 前缀
+    path-prefix: /internal
+
+  # CORS（前端联调用；迭代一前端尚未实现）
+  cors:
+    enabled: ${APP_CORS_ENABLED:true}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: false
+    max-age: 3600
+
+  # 图片本地存储（OOS-18：不使用对象存储）
+  storage:
+    type: local
+    local-dir: ${APP_STORAGE_LOCAL_DIR:./data/uploads}
+    # 对外访问前缀（与契约 ItemImageUploadResponse.imageUrl 对应）
+    public-prefix: /static/uploads
+
+  # 分页默认值（与契约 PageParam/SizeParam 一致：page 从 0 开始，size 默认 20、上限 100）
+  pagination:
+    default-page: 0
+    default-size: 20
+    max-size: 100
+
+# =====================================================================
+# 生命周期与优雅停机
+#   graceful：收到 SIGTERM 后先停止接收新请求，等待在途请求完成
+# =====================================================================
