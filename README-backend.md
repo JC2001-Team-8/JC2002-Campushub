@@ -13,7 +13,7 @@
 
 > **本步骤范围**：只搭**工程骨架** —— 可编译、可启动、可连 PostgreSQL 15、
 > Flyway 自动执行 V1~V4、`/actuator/health` 返回 UP、Swagger UI 可访问。
-> **不含**业务逻辑、**不含** 83 个业务 Controller、**不含**前端。
+> **不含**业务实现、**不含**前端。当前已含 **83 个 operationId 的 Controller / DTO / Service 骨架**（方法体抛 `UnsupportedOperationException`）。
 
 ---
 
@@ -548,7 +548,7 @@ The latest supported version of PostgreSQL is 14.
 
 | 不做项 | 说明 |
 | --- | --- |
-| ~~83 个业务 Controller~~ | ✅ **第五步已完成生成**（见 `controller-skeleton-verification.md`） |
+| 业务 Controller 骨架 | ✅ 已生成（12 个契约 Controller / 83 个 operationId，见 `controller-skeleton-verification.md`）；仅骨架，无业务实现 |
 | 业务逻辑实现 | 83 个方法体统一抛 `UnsupportedOperationException`，下一步实现 |
 | 业务 Service / Repository / Entity | `service`/`repository`/`entity`/`dto` 为占位包 |
 | 93 个业务错误码 | `ErrorCode` 当前只有 7 个通用码，其余按 `error-codes.md` 补齐 |
@@ -570,6 +570,7 @@ The latest supported version of PostgreSQL is 14.
 | `docs/iteration1/design/backend-skeleton-verification.md` | 本步骤验证记录（实测输出） |
 | `README-db.md` | 数据库启动、迁移、查询 |
 | `db/verify_schema.sql` | 数据库对账脚本（只读可重复执行） |
+| 三份路线基准（`ITERATION-PLAN-VERTICAL-SLICES.md`、`TEAM-ROADMAP-FOR-MEMBERS.md`、`COLLABORATION-RULES.md`） | 改代码前先按三份路线基准确认切片归属与交棒条件；由团队放入仓库根目录后生效（当前仓库内尚无这三份文件） |
 
 ---
 
@@ -577,6 +578,7 @@ The latest supported version of PostgreSQL is 14.
 
 | 版本 | 日期 | 变更人 | 变更内容 | 状态 |
 | --- | --- | --- | --- | --- |
+| v1.3 | 2026-11-11 | 文档对齐代理 | 按三份路线基准对齐：① 文首范围改为“含 83 个 operationId 的 Controller/DTO/Service 骨架（方法体抛 `UnsupportedOperationException`），不含业务实现”；② §7.3 修正“业务 Controller”含混措辞；③ §8 新增三份路线基准的文字说明（不放相对链接） | 生效 |
 | v1.0 | 2026-10-12 | 后端工程负责人 | 初稿：环境要求、目录结构、三种启动方式、验证步骤、配置说明、9 项常见问题、Flyway 版本决策、安全收紧清单 | 草稿（待确认） |
 | v1.1 | 2026-10-12 | 后端工程负责人 | 构建提速：默认 Dockerfile 改为「复制宿主机 jar」的运行镜像（38 分钟 → 9 秒）；新增 Dockerfile.build（容器内构建，含依赖层缓存）与 .dockerignore（上下文 155MB → 50MB）；修复 RUNNER_IMAGE 空值导致构建失败的缺陷；补充 §6.5 与 §7.4 | 草稿（待确认） |
 | v1.2 | 2026-10-12 | 后端接口骨架负责人 | 第五步：按冻结契约生成 83 个 operationId 的 Controller/DTO/Service 骨架（12 Controller + 99 DTO + 12 Service）；Swagger UI 默认展示 83 个操作；新增 §4.1.1 验证方法 | 草稿（待确认） |

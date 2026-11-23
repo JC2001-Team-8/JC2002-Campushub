@@ -28,15 +28,15 @@ docker compose ps                     # 期望 STATUS 显示 (healthy)
 docker run --rm --network jc2001_default \
   -v "$PWD/src/main/resources/db/migration:/flyway/sql:ro" \
   flyway/flyway:10 \
-  -url="jdbc:postgresql://postgres:5432/jc2001" \
-  -user=jc2001 -password=jc2001_dev_password \
+  -url="jdbc:postgresql://postgres:5432/campus_trade" \
+  -user=campus_trade -password=campus_trade \
   -locations=filesystem:/flyway/sql migrate
 
 # 4) 验证（25 项只读检查）
-docker exec -i jc2001-postgres psql -U jc2001 -d jc2001 -f - < db/verify_schema.sql
+docker exec -i jc2001-postgres psql -U campus_trade -d campus_trade -f - < db/verify_schema.sql
 
 # 5) 随手查一下
-docker exec -it jc2001-postgres psql -U jc2001 -d jc2001 -c "SELECT count(*) FROM users;"
+docker exec -it jc2001-postgres psql -U campus_trade -d campus_trade -c "SELECT count(*) FROM users;"
 ```
 
 ---
@@ -47,10 +47,10 @@ docker exec -it jc2001-postgres psql -U jc2001 -d jc2001 -c "SELECT count(*) FRO
 | --- | --- | --- |
 | Host | `localhost` | `docker-compose.yml` 端口映射 |
 | Port | **5432** | `POSTGRES_*` + `ports` |
-| Database | `jc2001` | `POSTGRES_DB` |
-| User | `jc2001` | `POSTGRES_USER` |
-| Password | `jc2001_dev_password` | `POSTGRES_PASSWORD` |
-| JDBC URL | `jdbc:postgresql://localhost:5432/jc2001` | Spring Boot 配置用 |
+| Database | `campus_trade` | `POSTGRES_DB` |
+| User | `campus_trade` | `POSTGRES_USER` |
+| Password | `campus_trade` | `POSTGRES_PASSWORD` |
+| JDBC URL | `jdbc:postgresql://localhost:5432/campus_trade` | Spring Boot 配置用 |
 | 时区 | `Asia/Shanghai` | `TZ` / `PGTZ` / `-c timezone`（A-20） |
 
 > ⚠️ 以上为**开发环境**凭据，写在 `docker-compose.yml` 中便于本地验证。生产环境必须改为环境变量/密钥管理。
@@ -59,10 +59,10 @@ docker exec -it jc2001-postgres psql -U jc2001 -d jc2001 -c "SELECT count(*) FRO
 
 ```bash
 # 方式 A：进入容器
-docker exec -it jc2001-postgres psql -U jc2001 -d jc2001
+docker exec -it jc2001-postgres psql -U campus_trade -d campus_trade
 
 # 方式 B：宿主机有 psql 时
-psql "postgresql://jc2001:jc2001_dev_password@localhost:5432/jc2001"
+psql "postgresql://campus_trade:campus_trade@localhost:5432/campus_trade"
 ```
 
 ### 2.2 常用 psql 命令
@@ -83,14 +83,15 @@ SELECT * FROM flyway_schema_history;   -- 迁移历史
 | `V1__init_schema.sql` | 26 个枚举类型、25 张业务表、全部约束/索引/触发器、324 条列注释 | ❌（Flyway 只执行一次） | ✅ |
 | `V2__seed_reference_data.sql` | 预设字典：7 个交易区域、13 个取货点、6 个分类、5 个成色 | ❌ | ✅（但含**占位名称**，需先替换） |
 | `V3__seed_development_data.sql` | 开发种子：管理员、示例用户/商品/订单/交换/处罚/通知 | ❌ | ❌ **禁止生产执行**（含占位账号与密码） |
+| `V4__fix_review_window_index.sql` | 修正 FR-604 评价窗口关闭的扫描条件（仅覆盖活跃态，排除终态 `BOTH_REVIEWED`；DQ-27） | ❌ | ✅ |
 
 ### 3.1 迁移顺序与依赖
 
 ```text
-V1（表结构） → V2（预设字典，依赖 V1） → V3（开发数据，依赖 V1+V2）
+V1（表结构） → V2（预设字典，依赖 V1） → V3（开发数据，依赖 V1+V2） → V4（评价窗口索引修正，依赖 V1）
 ```
 
-三者必须**按版本号顺序**执行；Flyway 自动保证。
+四者必须**按版本号顺序**执行；Flyway 自动保证。
 
 ### 3.2 执行方式
 
@@ -100,17 +101,17 @@ V1（表结构） → V2（预设字典，依赖 V1） → V3（开发数据，�
 docker run --rm --network jc2001_default \
   -v "$PWD/src/main/resources/db/migration:/flyway/sql:ro" \
   flyway/flyway:10 \
-  -url="jdbc:postgresql://postgres:5432/jc2001" \
-  -user=jc2001 -password=jc2001_dev_password \
+  -url="jdbc:postgresql://postgres:5432/campus_trade" \
+  -user=campus_trade -password=campus_trade \
   -locations=filesystem:/flyway/sql migrate
 ```
 
 **方式 B：psql 顺序执行（等价验证 SQL 本身）**
 
 ```bash
-for f in V1__init_schema V2__seed_reference_data V3__seed_development_data; do
+for f in V1__init_schema V2__seed_reference_data V3__seed_development_data V4__fix_review_window_index; do
   echo "== $f"
-  docker exec -i jc2001-postgres psql -U jc2001 -d jc2001 -v ON_ERROR_STOP=1 \
+  docker exec -i jc2001-postgres psql -U campus_trade -d campus_trade -v ON_ERROR_STOP=1 \
     < "src/main/resources/db/migration/$f.sql" || { echo "FAILED: $f"; exit 1; }
 done
 ```
@@ -123,8 +124,8 @@ done
 FLY="docker run --rm --network jc2001_default \
   -v $PWD/src/main/resources/db/migration:/flyway/sql:ro \
   flyway/flyway:10 \
-  -url=jdbc:postgresql://postgres:5432/jc2001 \
-  -user=jc2001 -password=jc2001_dev_password -locations=filesystem:/flyway/sql"
+  -url=jdbc:postgresql://postgres:5432/campus_trade \
+  -user=campus_trade -password=campus_trade -locations=filesystem:/flyway/sql"
 
 $FLY info        # 查看迁移状态
 $FLY validate    # 校验 checksum 一致性
@@ -194,10 +195,10 @@ WHERE status='PENDING' AND now() >= expires_at;
 SELECT id, target_user_id FROM penalties
 WHERE status IN ('ACTIVE','APPEALING') AND now() >= ends_at;
 
--- FR-604 评价窗口关闭
+-- FR-604 评价窗口关闭（严格按 V4__fix_review_window_index.sql 第 41 行：仅活跃态）
 SELECT id, order_no FROM orders
-WHERE review_status <> 'WINDOW_CLOSED' AND review_deadline IS NOT NULL
-  AND now() > review_deadline;
+WHERE review_status IN ('OPEN', 'BUYER_REVIEWED', 'SELLER_REVIEWED')
+  AND review_deadline IS NOT NULL AND now() > review_deadline;
 ```
 
 ---
@@ -223,9 +224,9 @@ docker ps --format '{{.Names}}: {{.Ports}}'
 
 # 解法 A：临时改用其他端口启动一次性容器（不改交付文件）
 docker run -d --name jc2001-pg \
-  -e POSTGRES_DB=jc2001 -e POSTGRES_USER=jc2001 -e POSTGRES_PASSWORD=jc2001_dev_password \
+  -e POSTGRES_DB=campus_trade -e POSTGRES_USER=campus_trade -e POSTGRES_PASSWORD=campus_trade \
   -p 55432:5432 postgres:15
-# 迁移时把 URL 改为 jdbc:postgresql://<容器名或host>:5432/jc2001（容器网络内仍用 5432）
+# 迁移时把 URL 改为 jdbc:postgresql://<容器名或host>:5432/campus_trade（容器网络内仍用 5432）
 
 # 解法 B：若确认 5432 上的容器可以停，停掉它
 docker stop <占用容器名>
@@ -244,7 +245,7 @@ Migration checksum mismatch for migration version 1
 
 **原因**：修改了**已执行过**的迁移脚本。
 
-**解法**：**不要**改已执行的脚本。把变更写进新的 `V4__xxx.sql`。
+**解法**：**不要**改已执行的脚本（`V1`~`V4` 一律只读）。把变更写进新的 `V5__xxx.sql`。
 若只是本地验证库弄脏，可清库重来：
 
 ```bash
@@ -260,8 +261,8 @@ docker compose down -v      # 删容器 + 数据卷
 docker compose up -d
 docker run --rm --network jc2001_default \
   -v "$PWD/src/main/resources/db/migration:/flyway/sql:ro" \
-  flyway/flyway:10 -url="jdbc:postgresql://postgres:5432/jc2001" \
-  -user=jc2001 -password=jc2001_dev_password \
+  flyway/flyway:10 -url="jdbc:postgresql://postgres:5432/campus_trade" \
+  -user=campus_trade -password=campus_trade \
   -locations=filesystem:/flyway/sql migrate
 ```
 
@@ -282,13 +283,13 @@ CREATE EXTENSION IF NOT EXISTS citext;
 替换方式（保持可追溯）：
 
 ```sql
--- 新增 V4__replace_trade_zones.sql（不要改 V2）
+-- 新增 V5__replace_trade_zones.sql（不要改 V2）
 UPDATE trade_zones SET name='真实校区名称' WHERE code='CAMPUS_A';
 -- 或按确认后的清单 INSERT / 停用 is_active=FALSE
 ```
 
 对应的待确认问题：**Q-01 / Q-02 / Q-03 / Q-04**，详见
-`docs/iteration1/design/open-questions.md` §2。
+`docs/iteration1/glossary-assumptions-questions.md`。
 
 ### 5.6 为什么查不到某个状态值？
 
@@ -336,4 +337,5 @@ ALTER TYPE order_status ADD VALUE 'REFUNDING';
 
 | 版本 | 日期 | 变更人 | 变更内容 | 状态 |
 | --- | --- | --- | --- | --- |
+| v1.1 | 2026-11-11 | 文档对齐代理 | 按 `docker-compose.yml` 与冻结迁移对齐：① 库名/用户/密码由 `jc2001` 系列改为 `campus_trade`（§1、§2、§5；§4.1 经核对无凭据，无需改动；容器名与网络名不变）；② §3 迁移清单与 §3.1/§3.2 补 `V4__fix_review_window_index.sql`；③ §5.2/§5.5 的“新增 V4”改为“新增 V5+”；④ §4.3 的 FR-604 条件改为 `review_status IN ('OPEN','BUYER_REVIEWED','SELLER_REVIEWED')`（依据 V4 第 41 行，避免回退终态）；⑤ §5.5 的 Q-01~Q-04 索引改指 `glossary-assumptions-questions.md` | 生效 |
 | v1.0 | 2026-10-12 | 数据库与领域模型设计负责人 | 初稿：快速开始、连接参数、迁移说明、常用查询、常见问题（含端口冲突）、生产注意事项 | 草稿（待确认） |

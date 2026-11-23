@@ -155,7 +155,7 @@ src/main/java/com/jc2001/campustrade/
 │   ├── UserController.java         ← 个人资料（5 个）★ 迭代二
 │   ├── DictionaryController.java   ← 字典与区域（4 个）★ 迭代二
 │   ├── ItemController.java         ← 商品（10 个，含图片上传）★ 迭代二
-│   ├── ReportController.java       ← 举报（3 个）★ 迭代二
+│   ├── ReportController.java       ← 举报（3 个）★ 切片 4
 │   ├── CartController.java         ← 购物车（4 个）
 │   ├── OrderController.java        ← 订单与付款（8 个）
 │   ├── ReviewController.java       ← 评价（3 个）
@@ -420,8 +420,7 @@ docker exec -it jc2001-postgres psql -U campus_trade -d campus_trade
 | 4 | 我的物品：修改 / 下架 / 重新上架 | `listMyItems`、`updateItem`、`takeItemOffShelf`、`relistItem` |
 | 5 | 访客按分类浏览、关键词搜索、限定区域 | `listItems`、`listCategories`、`listItemConditions`、`listTradeZones` |
 | 6 | 详情页：多图轮播、卖家头像、区域、剩余数量、公开交换状态 | `getItemDetail` |
-| 7 | 举报违规商品 | `reportItem`、`listMyReports`、`getMyReport` |
-| 8 | 权限红线：除发布者外任何人不能修改/下架；上传图片必须登录 | `@PreAuthorize` + Service 层归属校验 |
+| 7 | 权限红线：除发布者外任何人不能修改/下架；上传图片必须登录 | `@PreAuthorize` + Service 层归属校验 |
 
 ### 5.2 迭代一已预留但未实现的部分
 
@@ -473,15 +472,9 @@ docker exec -it jc2001-postgres psql -U campus_trade -d campus_trade
 | `getItemOccupation` | GET | `/api/v1/items/{itemId}/occupation` |
 | `uploadImage` | POST | `/api/v1/files/images` |
 
-**举报（3 个）**
+> **归属提示**：举报的 3 个 operationId（`reportItem`、`listMyReports`、`getMyReport`）与 `reports` 表同属**切片 4**，不在迭代二（切片 1 + 切片 2）范围内。
 
-| operationId | 方法 | 路径 |
-| --- | --- | --- |
-| `reportItem` | POST | `/api/v1/items/{itemId}/reports` |
-| `listMyReports` | GET | `/api/v1/users/me/reports` |
-| `getMyReport` | GET | `/api/v1/reports/{reportId}` |
-
-**合计 28 个 operationId**（占 83 个的 1/3），全部已冻结、Controller 已就位、Service 待实现。
+**切片 1 + 切片 2 合计 25 个 operationId**（15 + 10），全部已冻结、Controller 已就位、Service 待实现。
 
 **关键 DTO 字段（已冻结，直接使用）**
 
@@ -517,33 +510,29 @@ docker exec -it jc2001-postgres psql -U campus_trade -d campus_trade
 
 ### 5.3 建议实现顺序
 
-按依赖关系，建议这样推进（**不要跳步**）：
+按垂直切片串行推进（**切片闭合才交棒，不要跳片**）：
 
 ```
-第 1 步：地基（无依赖，必须先做）
-  1.1 创建 entity 包 —— 按 schema.md 把 25 张表映射为 JPA 实体
-  1.2 创建 repository 包 —— Spring Data JPA 仓储
-  1.3 补全 common/ErrorCode.java —— 按 error-codes.md 逐字补齐 93 个业务码
-  1.4 收紧 config/SecurityConfig.java —— 按 api-permission-mapping.md 逐条放行
-  1.5 实现 security/UserDetailsServiceImpl.java —— 接上 users 表
-      （目前恒抛 UsernameNotFoundException，导致无法真正认证）
+切片 1：账户与共享内核
+  - 表：只建切片 1 独占的 7 张表（含 user_trade_zones）的 Entity 与 Repository，不做其余表
+  - 公共组件：幂等键处理（idempotency_records）+ 乐观锁条件更新模板
+  - 安全：收紧 SecurityConfig、实现 UserDetailsServiceImpl（接上 users 表）
+  - 接口：AuthService / UserService / DictionaryService（切片 1 的 15 个 operationId）
+  - 闭合：注册 → 登录 → 看自己主页端到端跑通；6 个公共实体宣布冻结
 
-第 2 步：账户与字典（依赖第 1 步）
-  2.1 AuthService：registerUser → login → getCurrentUser → logout → changePassword
-  2.2 UserService：updateMyProfile → setMyTradeZones → getPublicProfile → 通知设置
-  2.3 DictionaryService：4 个只读字典接口（数据已在 V2 种子中）
+切片 2：商品与检索
+  - 表：items / item_images / item_occupations（3 张）
+  - 接口：ItemService（切片 2 的 10 个 operationId，含 uploadImage、getItemOccupation 的接口与空态）
+  - 闭合：带图发布 → 搜索到 → 看清详情 → 我的物品可改可下架；把“占用 / 释放”方法交接给切片 3
 
-第 3 步：商品发布（依赖第 2 步的登录态）
-  3.1 FileService：uploadImage（本地目录 + 大小/格式校验 + 返回 imageUrl）
-  3.2 ItemService：createItem（含 imageUrls 落库到 item_images + sort_order）
-  3.3 ItemService：listMyItems → updateItem → takeItemOffShelf → relistItem
+切片 3：购买与交换（3A 购买 → 3B 交换，子阶段串行）
+  - 只调用切片 2 公开的“占用 / 释放”方法，不直接写 items / item_occupations
+  - 闭合：购买主线与交换主线各端到端跑通，并发不卖超、整笔作废验证通过
 
-第 4 步：检索与详情（依赖第 3 步有数据）
-  4.1 ItemService：listItems（分类筛选 / 关键词搜索 / 区域限定 / 分页）
-  4.2 ItemService：getItemDetail（多图 + 卖家公开信息 + 区域 + 交换状态）
-
-第 5 步：举报（最后做）
-  5.1 ReportService：reportItem → listMyReports → getMyReport
+切片 4：治理、评价与整合交付
+  - 表：reviews / reports / penalties / appeals / notifications / audit_logs
+  - 含举报、评价、通知写入与治理联动
+  - 闭合：治理闭环可用；一键启动包在干净电脑跑通两条主线
 ```
 
 **每一步都要做的事**：
@@ -615,7 +604,7 @@ docker exec -it jc2001-postgres psql -U campus_trade -d campus_trade
 
 ### 6.1 建议的 `.gitignore`
 
-> 仓库当前**不是 git 仓库**（无 `.git`）。首次提交前请创建 `.gitignore`：
+> 仓库已初始化为 git 仓库（含 `.gitignore`）。首次提交前需补齐 `.mvnrepo/`、`__pycache__/`、`.env` 的忽略项：
 
 ```gitignore
 # ---- 构建产物 ----
@@ -689,22 +678,19 @@ application-local.yml
 | 本地数据库数据卷 | 不在仓库内（Docker volume） | 由 Flyway 迁移重建 |
 | `__pycache__/`、`.DS_Store`、`*.log` | 临时/系统文件 | 已列入 `.gitignore` |
 
-### 6.4 分支建议
+### 6.4 分支与合并建议
 
 ```bash
-# 迭代二从 main 拉出功能分支
+# 从 main 拉出当前切片的短生命周期分支
 git checkout main
-git pull
-git checkout -b feature/iteration2-account-item
+git pull --ff-only
+git checkout -b feat/slice1-account-core
 
-# 建议按 §5.3 的 5 个步骤分别提交，每次提交信息带上 operationId 或 FR 编号，例如：
-#   feat(auth): implement registerUser / login (FR-101, FR-102)
-#   feat(item): implement createItem with image upload (FR-201, FR-205)
-#   feat(error): add 93 domain error codes from error-codes.md
+# 按切片提交，提交信息写清“哪个 operationId / 哪条规则”，格式 feat(切片名): 具体内容
+#   feat(切片1): 实现 registerUser / login（FR-101、FR-102）
+#   feat(切片2): 实现 createItem 与 uploadImage（R-10/R-12/R-03）
 
-# 完成后合并回 main
-git checkout main
-git merge --no-ff feature/iteration2-account-item
+# 合并走 Pull Request，至少 1 人评审；评审通过后由后端负责人合并
 ```
 
 **提交前自检**：
@@ -735,6 +721,7 @@ POSTGRES_HOST_PORT=55432 APP_HOST_PORT=8080 docker compose -p jc2001 up -d --bui
 | **3** | `docs/iteration1/design/SystemDesign.md` | 建立全局理解：架构、领域模型、**占用与释放模型**、状态机、规则、权限 | 40 分钟 |
 | **4** | `docs/iteration1/design/api-contract.md` | 83 个接口的逐条清单 + FR 映射，配合 `error-codes.md` 一起看 | 30 分钟 |
 | **5** | `docs/iteration1/design/er-diagram.md` + `schema.md` | 动手写 entity/repository 之前必须看懂表结构与关系 | 40 分钟 |
+| **6** | 三份路线基准（`ITERATION-PLAN-VERTICAL-SLICES.md`、`TEAM-ROADMAP-FOR-MEMBERS.md`、`COLLABORATION-RULES.md`） | 切片划分、交棒条件、双人责任制；**由团队放入仓库根目录后生效**（当前仓库内尚无这三份文件） | 20 分钟 |
 
 **之后按需查阅**：
 
@@ -828,7 +815,7 @@ python3 tools/generate_api_skeleton.py
 - [ ] 已与团队确认 §5.5 的 **3 项差异**（交易区域 1–3 vs 1–5、可售数量、图片排序）
 - [ ] 已知晓 §5.6 的 P0 待确认问题，并决定"按默认实现 + 标注待确认"
 - [ ] 已创建 `.gitignore` 并确认 `git status` 干净
-- [ ] 已从 `main` 拉出 `feature/iteration2-account-item` 分支
+- [ ] 已从 `main` 拉出 `feat/slice<N>-<简短描述>` 分支（如 `feat/slice1-account-core`）
 
 ### 8.5 遇到问题时的排查顺序
 
@@ -849,4 +836,5 @@ python3 tools/generate_api_skeleton.py
 
 | 版本 | 日期 | 变更人 | 变更内容 | 状态 |
 | --- | --- | --- | --- | --- |
+| v1.1 | 2026-11-11 | 文档对齐代理 | 按三份路线基准对齐：① 迭代二范围移除举报 3 个 operationId（归切片 4），合计改为切片 1+2 的 25（15+10）；② §5.3 由“先建全部地基”改为切片 1→2→3→4 串行、切片闭合才交棒；③ §6.1 改为“仓库已初始化为 git 仓库（含 `.gitignore`），需补齐 `.mvnrepo/`、`__pycache__/`、`.env` 忽略项”；④ §6.4/§8.4 分支与合并改为 `feat/slice<N>-…` + PR + 至少 1 人评审 + `feat(切片名): …`；⑤ §7 索引新增三份路线基准说明（不放相对链接） | 生效 |
 | v1.0 | 2026-10-12 | 迭代一交付负责人 | 首版：项目概述与迭代一范围、文件结构总览（含逐目录职责表）、已实现内容（数据库/契约/骨架/设计/部署）、启动与验证步骤、迭代二目标与 28 个待实现 operationId、建议实现顺序、12 条硬性约束、**3 项已冻结设计与迭代二描述的差异**、P0 待确认问题、GitHub 提交注意事项（.gitignore/分支/提交内容）、关键文档索引、附录（命令速查/端口/占位数据/开工检查清单/排错表） | 草稿（待确认） |
