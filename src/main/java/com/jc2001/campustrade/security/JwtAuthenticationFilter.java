@@ -11,6 +11,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -52,10 +53,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
+    private final UserDetailsService userDetailsService;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, ObjectMapper objectMapper) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, ObjectMapper objectMapper, UserDetailsService userDetailsService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.objectMapper = objectMapper;
+        this.userDetailsService = userDetailsService;
     }
 
     @Override
@@ -73,9 +76,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             if (!jwtTokenProvider.validateToken(token)) {
-                // 令牌非法/过期：骨架阶段放行匿名，由授权规则决定是否 401
-                // TODO 下一步：对「必须登录」的路径返回 401（见 api-permission-mapping.md §3）
-                log.debug("携带非法或过期令牌，骨架阶段按匿名处理: uri={}", request.getRequestURI());
+                if (jwtTokenProvider.isExpired(token) && isProtectedApi(request)) {
+                    writeUnauthorized(response, request, ErrorCode.AUTH_TOKEN_EXPIRED);
+                    return;
+                }
+                log.debug("携带非法 JWT，按匿名处理: uri={}", request.getRequestURI());
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -83,24 +88,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 仅在尚未认证时写入，避免覆盖其他认证机制的结果
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 String username = jwtTokenProvider.getUsername(token);
-                String role = jwtTokenProvider.getRole(token);
-                Long userId = jwtTokenProvider.getUserId(token);
-
                 if (username != null) {
-                    List<SimpleGrantedAuthority> authorities =
-                            List.of(new SimpleGrantedAuthority("ROLE_" + (role == null ? "USER" : role)));
-
-                    // TODO 下一步：改为由 UserDetailsServiceImpl 加载真实用户，
-                    //      以便获取实时 status（RESTRICTED）与 restrictedUntil
-                    UserDetails principal = new AuthenticatedUser(
-                            userId, username, null, role, null, authorities);
-
+                    UserDetails principal = userDetailsService.loadUserByUsername(username);
+                    List<SimpleGrantedAuthority> authorities = principal.getAuthorities().stream()
+                            .map(a -> new SimpleGrantedAuthority(a.getAuthority())).collect(java.util.stream.Collectors.toList());
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(principal, null, authorities);
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                    log.debug("JWT 认证成功: userId={}, username={}, role={}", userId, username, role);
+                    log.debug("JWT 认证成功: username={}", username);
                 }
             }
             filterChain.doFilter(request, response);
@@ -111,6 +108,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.warn("JWT 过滤器异常，按匿名继续: {}", ex.getMessage());
             filterChain.doFilter(request, response);
         }
+    }
+
+    private boolean isProtectedApi(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (!path.startsWith("/api/v1/")) return false;
+        if ("GET".equalsIgnoreCase(request.getMethod()) && (path.equals("/api/v1/items")
+                || path.matches("/api/v1/items/[^/]+") || path.matches("/api/v1/users/[^/]+/public-profile"))) return false;
+        if (path.startsWith("/api/v1/auth/register") || path.startsWith("/api/v1/auth/login")
+                || path.startsWith("/api/v1/auth/refresh") || path.startsWith("/api/v1/trade-zones/")
+                || path.equals("/api/v1/trade-zones") || path.equals("/api/v1/categories")
+                || path.equals("/api/v1/item-conditions") || path.matches("/api/v1/users/[^/]+/public-profile")) return false;
+        return true;
     }
 
     /**

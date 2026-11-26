@@ -1,7 +1,7 @@
 package com.jc2001.campustrade.controller;
 
 import com.jc2001.campustrade.common.ApiResponse;
-import com.jc2001.campustrade.common.PageResult;
+import com.jc2001.campustrade.common.TraceIdFilter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -16,6 +16,8 @@ import com.jc2001.campustrade.dto.response.PickupPoint;
 import com.jc2001.campustrade.dto.response.PickupPointType;
 import com.jc2001.campustrade.dto.response.TradeZone;
 import com.jc2001.campustrade.dto.response.ZoneType;
+import com.jc2001.campustrade.service.DictionaryService;
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
 // GENERATED FROM openapi.yaml —— 请勿手工修改；契约变更须走 api-freeze.md §4 流程
@@ -35,6 +37,9 @@ import java.util.List;
 @RequestMapping("/api/v1")
 public class DictionaryController {
 
+    private final DictionaryService dictionaryService;
+    public DictionaryController(DictionaryService dictionaryService) { this.dictionaryService = dictionaryService; }
+
     /**
      * 预设交易区域列表（R-15）
      *
@@ -50,9 +55,11 @@ public class DictionaryController {
     @GetMapping("/trade-zones")
     public ResponseEntity<ApiResponse<List<TradeZone>>> listTradeZones(
             @Parameter(description = "按类型过滤") @RequestParam(value = "zoneType", required = false) ZoneType zoneType,
-            @Parameter(description = "是否包含已停用区域（仅管理员可用，其他角色传 true 被忽略）") @RequestParam(value = "includeInactive", required = false, defaultValue = "False") Boolean includeInactive
+            @Parameter(description = "是否包含已停用区域（仅管理员可用，其他角色传 true 被忽略）") @RequestParam(value = "includeInactive", required = false, defaultValue = "False") Boolean includeInactive,
+            HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement listTradeZones");
+        return ResponseEntity.ok(ApiResponse.ok(dictionaryService.listTradeZones(zoneType, includeInactive))
+                .withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -70,9 +77,11 @@ public class DictionaryController {
     @GetMapping("/trade-zones/{tradeZoneId}/pickup-points")
     public ResponseEntity<ApiResponse<List<PickupPoint>>> listPickupPointsByZone(
             @Parameter(description = "交易区域 ID") @PathVariable("tradeZoneId") Long tradeZoneId,
-            @Parameter(description = "按取货点类型过滤") @RequestParam(value = "pointType", required = false) PickupPointType pointType
+            @Parameter(description = "按取货点类型过滤") @RequestParam(value = "pointType", required = false) PickupPointType pointType,
+            HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement listPickupPointsByZone");
+        return ResponseEntity.ok(ApiResponse.ok(dictionaryService.listPickupPointsByZone(tradeZoneId, pointType))
+                .withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -88,8 +97,8 @@ public class DictionaryController {
     @SecurityRequirements
     @PreAuthorize("permitAll()")
     @GetMapping("/categories")
-    public ResponseEntity<ApiResponse<List<Category>>> listCategories() {
-        throw new UnsupportedOperationException("TODO: implement listCategories");
+    public ResponseEntity<ApiResponse<List<Category>>> listCategories(HttpServletRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(dictionaryService.listCategories()).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -105,8 +114,8 @@ public class DictionaryController {
     @SecurityRequirements
     @PreAuthorize("permitAll()")
     @GetMapping("/item-conditions")
-    public ResponseEntity<ApiResponse<List<ItemCondition>>> listItemConditions() {
-        throw new UnsupportedOperationException("TODO: implement listItemConditions");
+    public ResponseEntity<ApiResponse<List<ItemCondition>>> listItemConditions(HttpServletRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(dictionaryService.listItemConditions()).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
 }

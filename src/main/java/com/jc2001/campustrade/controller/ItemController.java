@@ -22,6 +22,14 @@ import com.jc2001.campustrade.dto.response.ItemSummary;
 import com.jc2001.campustrade.dto.response.SwapPreference;
 import java.util.List;
 import java.util.Map;
+import com.jc2001.campustrade.service.ItemService;
+import com.jc2001.campustrade.security.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Value;
+import java.nio.file.*;
+import java.util.UUID;
+import javax.validation.Valid;
 
 // GENERATED FROM openapi.yaml —— 请勿手工修改；契约变更须走 api-freeze.md §4 流程
 /**
@@ -39,6 +47,10 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1")
 public class ItemController {
+
+    private final ItemService items;
+    @Value("${app.storage.local-dir:./data/uploads}") private String uploadDir;
+    public ItemController(ItemService items) { this.items = items; }
 
     /**
      * 商品列表 / 分类浏览 / 搜索（FR-201 前置浏览、PF-01）
@@ -66,7 +78,7 @@ public class ItemController {
             @Parameter(description = "是否接受交换（FR-210）") @RequestParam(value = "swapPreference", required = false) SwapPreference swapPreference,
             @Parameter(description = "按卖家过滤（用于个人主页在售列表）") @RequestParam(value = "sellerId", required = false) Long sellerId
     ) {
-        throw new UnsupportedOperationException("TODO: implement listItems");
+        return ResponseEntity.ok(ApiResponse.ok(items.list(page,size,sort,categoryId,conditionId,tradeZoneId,keyword,minPrice,maxPrice,swapPreference,sellerId,null,null)));
     }
 
     /**
@@ -87,9 +99,9 @@ public class ItemController {
     // 幂等键 Idempotency-Key 见方法参数（R-17）
     public ResponseEntity<ApiResponse<ItemDetail>> createItem(
             @Parameter(description = "**必填**幂等键（R-17）。由前端生成 UUID v4（假设 A-15），同一逻辑操作重试必须复用同一键。 语义：同用户 + 同键 + 同请求体 → 返回首次结果（IDEM-A，HTTP 200/201）； 同键但请求体不同 → `409 COMMON_IDEMPOTENCY_KEY_REUSED`（E-16）。 记录保留 24 小时（假设 A-08）。") @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey,
-            @RequestBody CreateItemRequest body
+            @Valid @RequestBody CreateItemRequest body, @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        throw new UnsupportedOperationException("TODO: implement createItem");
+        return ResponseEntity.status(201).body(ApiResponse.ok(items.create(user.getUserId(),idempotencyKey,body)));
     }
 
     /**
@@ -108,9 +120,10 @@ public class ItemController {
             @Parameter(description = "页码，**从 0 开始**（R-19：分页与排序在接口层冻结，OOS-09 不做个性化排序）") @RequestParam(value = "page", required = false, defaultValue = "0") Integer page,
             @Parameter(description = "每页条数，1–100，默认 20") @RequestParam(value = "size", required = false, defaultValue = "20") Integer size,
             @Parameter(description = "排序表达式，格式 `字段,方向`（方向 `asc` | `desc`），可重复传入多级排序。 **迭代一允许的排序字段是白名单**（OOS-09 不做推荐/个性化排序）： 商品列表：`published_at`（默认 desc）、`estimated_price`； 订单列表：`created_at`（默认 desc）； 交换提议：`created_at`（默认 desc）； 通知：`created_at`（默认 desc）。 传入白名单外字段返回 `COMMON_INVALID_SORT_FIELD`。") @RequestParam(value = "sort", required = false) List<String> sort,
-            @Parameter(description = "按状态过滤，可重复传入") @RequestParam(value = "status", required = false) List<ItemStatus> status
+            @Parameter(description = "按状态过滤，可重复传入") @RequestParam(value = "status", required = false) List<ItemStatus> status,
+            @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        throw new UnsupportedOperationException("TODO: implement listMyItems");
+        return ResponseEntity.ok(ApiResponse.ok(items.list(page,size,sort,null,null,null,null,null,null,null,user.getUserId(),user.getUserId(),status)));
     }
 
     /**
@@ -127,9 +140,9 @@ public class ItemController {
     @PreAuthorize("permitAll()")
     @GetMapping("/items/{itemId}")
     public ResponseEntity<ApiResponse<ItemDetail>> getItemDetail(
-            @Parameter(description = "商品 ID") @PathVariable("itemId") Long itemId
+            @Parameter(description = "商品 ID") @PathVariable("itemId") Long itemId, @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        throw new UnsupportedOperationException("TODO: implement getItemDetail");
+        return ResponseEntity.ok(ApiResponse.ok(items.detail(itemId,user==null?null:user.getUserId())));
     }
 
     /**
@@ -150,9 +163,9 @@ public class ItemController {
     public ResponseEntity<ApiResponse<ItemDetail>> updateItem(
             @Parameter(description = "") @PathVariable("itemId") Long itemId,
             @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-            @RequestBody UpdateItemRequest body
+            @Valid @RequestBody UpdateItemRequest body, @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        throw new UnsupportedOperationException("TODO: implement updateItem");
+        return ResponseEntity.ok(ApiResponse.ok(items.update(user.getUserId(),itemId,body)));
     }
 
     /**
@@ -171,9 +184,10 @@ public class ItemController {
     // 幂等键 Idempotency-Key 见方法参数（R-17）
     public ResponseEntity<ApiResponse<ItemDetail>> takeItemOffShelf(
             @Parameter(description = "") @PathVariable("itemId") Long itemId,
-            @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
+            @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        throw new UnsupportedOperationException("TODO: implement takeItemOffShelf");
+        return ResponseEntity.ok(ApiResponse.ok(items.shelf(user.getUserId(),itemId)));
     }
 
     /**
@@ -193,9 +207,10 @@ public class ItemController {
     // 幂等键 Idempotency-Key 见方法参数（R-17）
     public ResponseEntity<ApiResponse<ItemDetail>> relistItem(
             @Parameter(description = "") @PathVariable("itemId") Long itemId,
-            @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
+            @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        throw new UnsupportedOperationException("TODO: implement relistItem");
+        return ResponseEntity.ok(ApiResponse.ok(items.relist(user.getUserId(),itemId)));
     }
 
     /**
@@ -216,9 +231,9 @@ public class ItemController {
     public ResponseEntity<ApiResponse<ItemDetail>> updateItemSwapPreference(
             @Parameter(description = "") @PathVariable("itemId") Long itemId,
             @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-            @RequestBody UpdateSwapPreferenceRequest body
+            @Valid @RequestBody UpdateSwapPreferenceRequest body, @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        throw new UnsupportedOperationException("TODO: implement updateItemSwapPreference");
+        return ResponseEntity.ok(ApiResponse.ok(items.preference(user.getUserId(),itemId,body)));
     }
 
     /**
@@ -234,9 +249,9 @@ public class ItemController {
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/items/{itemId}/occupation")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getItemOccupation(
-            @Parameter(description = "") @PathVariable("itemId") Long itemId
+            @Parameter(description = "") @PathVariable("itemId") Long itemId, @AuthenticationPrincipal AuthenticatedUser user
     ) {
-        throw new UnsupportedOperationException("TODO: implement getItemOccupation");
+        return ResponseEntity.ok(ApiResponse.ok(items.occupation(user.getUserId(),itemId,user.isAdmin())));
     }
 
     /**
@@ -251,8 +266,15 @@ public class ItemController {
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/files/images")
-    public ResponseEntity<ApiResponse<ItemImageUploadResponse>> uploadImage() {
-        throw new UnsupportedOperationException("TODO: implement uploadImage");
+    public ResponseEntity<ApiResponse<ItemImageUploadResponse>> uploadImage(@RequestParam("file") MultipartFile file,
+            @RequestParam(value="purpose", required=false, defaultValue="ITEM_IMAGE") String purpose) {
+        if(!"ITEM_IMAGE".equals(purpose)&&!"AVATAR".equals(purpose)) throw new com.jc2001.campustrade.common.DomainException(com.jc2001.campustrade.common.ErrorCode.VALIDATION_ERROR);
+        if(file==null||file.isEmpty()) throw new com.jc2001.campustrade.common.DomainException(com.jc2001.campustrade.common.ErrorCode.VALIDATION_ERROR);
+        if(file.getSize()>5242880) throw new com.jc2001.campustrade.common.DomainException(com.jc2001.campustrade.common.ErrorCode.FILE_TOO_LARGE);
+        String type=file.getContentType(); if(!java.util.Arrays.asList("image/jpeg","image/png","image/webp").contains(type)) throw new com.jc2001.campustrade.common.DomainException(com.jc2001.campustrade.common.ErrorCode.FILE_TYPE_NOT_ALLOWED);
+        String ext="image/png".equals(type)?".png":"image/webp".equals(type)?".webp":".jpg"; String name=UUID.randomUUID()+ext;
+        try { Path root=Paths.get(uploadDir).toAbsolutePath().normalize();Files.createDirectories(root);Path target=root.resolve(name).normalize();if(!target.startsWith(root))throw new java.io.IOException("invalid path");Files.copy(file.getInputStream(),target,StandardCopyOption.REPLACE_EXISTING);ItemImageUploadResponse out=new ItemImageUploadResponse();out.setImageUrl("/static/uploads/"+name);out.setContentType(type);out.setFileSize((int)file.getSize());return ResponseEntity.status(201).body(ApiResponse.ok(out)); }
+        catch(java.io.IOException ex){throw new IllegalStateException("图片保存失败",ex);}
     }
 
 }

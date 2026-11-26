@@ -1,7 +1,7 @@
 package com.jc2001.campustrade.controller;
 
 import com.jc2001.campustrade.common.ApiResponse;
-import com.jc2001.campustrade.common.PageResult;
+import com.jc2001.campustrade.common.TraceIdFilter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -15,6 +15,9 @@ import com.jc2001.campustrade.dto.request.UpdateProfileRequest;
 import com.jc2001.campustrade.dto.request.UserTradeZonesRequest;
 import com.jc2001.campustrade.dto.response.CurrentUserResponse;
 import com.jc2001.campustrade.dto.response.UserProfile;
+import com.jc2001.campustrade.service.UserService;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
 
 // GENERATED FROM openapi.yaml —— 请勿手工修改；契约变更须走 api-freeze.md §4 流程
 /**
@@ -33,6 +36,9 @@ import com.jc2001.campustrade.dto.response.UserProfile;
 @RequestMapping("/api/v1")
 public class UserController {
 
+    private final UserService userService;
+    public UserController(UserService userService) { this.userService = userService; }
+
     /**
      * 修改昵称与头像（FR-105 / FR-106）
      *
@@ -47,9 +53,9 @@ public class UserController {
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/users/me/profile")
     public ResponseEntity<ApiResponse<CurrentUserResponse>> updateMyProfile(
-            @RequestBody UpdateProfileRequest body
+            @Valid @RequestBody UpdateProfileRequest body, HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement updateMyProfile");
+        return ResponseEntity.ok(ApiResponse.ok(userService.updateMyProfile(body)).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -65,9 +71,9 @@ public class UserController {
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/users/me/trade-zones")
     public ResponseEntity<ApiResponse<CurrentUserResponse>> setMyTradeZones(
-            @RequestBody UserTradeZonesRequest body
+            @Valid @RequestBody UserTradeZonesRequest body, HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement setMyTradeZones");
+        return ResponseEntity.ok(ApiResponse.ok(userService.setMyTradeZones(body)).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -82,8 +88,8 @@ public class UserController {
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/users/me/notification-settings")
-    public ResponseEntity<ApiResponse<NotificationSettings>> getMyNotificationSettings() {
-        throw new UnsupportedOperationException("TODO: implement getMyNotificationSettings");
+    public ResponseEntity<ApiResponse<NotificationSettings>> getMyNotificationSettings(HttpServletRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(userService.getMyNotificationSettings()).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -99,9 +105,9 @@ public class UserController {
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/users/me/notification-settings")
     public ResponseEntity<ApiResponse<NotificationSettings>> updateMyNotificationSettings(
-            @RequestBody NotificationSettings body
+            @Valid @RequestBody NotificationSettings body, HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement updateMyNotificationSettings");
+        return ResponseEntity.ok(ApiResponse.ok(userService.updateMyNotificationSettings(body)).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -118,9 +124,10 @@ public class UserController {
     @PreAuthorize("permitAll()")
     @GetMapping("/users/{userId}/public-profile")
     public ResponseEntity<ApiResponse<UserProfile>> getPublicProfile(
-            @Parameter(description = "用户 ID") @PathVariable("userId") Long userId
+            @Parameter(description = "用户 ID") @PathVariable("userId") Long userId,
+            HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement getPublicProfile");
+        return ResponseEntity.ok(ApiResponse.ok(userService.getPublicProfile(userId)).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
 }

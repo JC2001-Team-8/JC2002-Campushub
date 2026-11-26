@@ -33,12 +33,9 @@ import java.util.List;
 /**
  * Spring Security 配置（骨架）。
  *
- * <p><b>⚠️ 本步骤为骨架，安全策略处于「放开」状态</b>：
- * 除白名单路径外，其余请求暂时 {@code permitAll}。
- * 这是为了让健康检查、Swagger UI 与后续逐步接入的接口都能联调。
+ * <p>API is stateless. Public routes are explicitly allowlisted; all other API routes require a JWT.
  *
- * <p><b>TODO（下一步必须完成）</b>：按下表与本文件内的逐个 TODO，
- * 依据 {@code docs/iteration1/design/api-permission-mapping.md} 收紧权限：
+ * <p>Authorization baseline follows {@code docs/iteration1/design/api-permission-mapping.md}:
  * <pre>
  *   /auth/register, /auth/login, /auth/refresh        → permitAll（契约 security: []）
  *   /trade-zones/**, /categories, /item-conditions    → permitAll（公开字典）
@@ -60,7 +57,7 @@ import java.util.List;
  */
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)  // 供下一步使用 @PreAuthorize
+    @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
@@ -71,6 +68,10 @@ public class SecurityConfig {
             "/api/v1/auth/register",
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
+            "/api/v1/trade-zones/**",
+            "/api/v1/categories",
+            "/api/v1/item-conditions",
+            "/api/v1/users/*/public-profile",
             // 健康检查与运维
             "/actuator/health",
             "/actuator/health/**",
@@ -121,11 +122,6 @@ public class SecurityConfig {
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        log.warn("================================================================");
-        log.warn("Security 处于【骨架放开模式】：除公开路径外全部 permitAll。");
-        log.warn("下一步必须按 docs/iteration1/design/api-permission-mapping.md 收紧权限。");
-        log.warn("================================================================");
-
         http
                 // 前后端分离 + Bearer 令牌：不需要 CSRF
                 .csrf().disable()
@@ -146,13 +142,10 @@ public class SecurityConfig {
                 .authorizeRequests()
                 .antMatchers(PUBLIC_ENDPOINTS).permitAll()
                 .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                // =========================================================
-                // TODO 下一步：启用以下收敛规则（当前全部放开以便联调）
-                // ---------------------------------------------------------
-                // .antMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                // .antMatchers("/api/v1/internal/**").denyAll()   // 内部接口仅网关可达
-                // .antMatchers("/api/v1/**").authenticated()
-                // =========================================================
+                .antMatchers(HttpMethod.GET, "/api/v1/items", "/api/v1/items/*", "/api/v1/users/*/public-profile").permitAll()
+                .antMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                .antMatchers("/api/v1/internal/**").denyAll()
+                .antMatchers("/api/v1/**").authenticated()
                 .anyRequest().permitAll()
                 .and()
                 // 关闭默认表单登录与 HTTP Basic（纯 API）

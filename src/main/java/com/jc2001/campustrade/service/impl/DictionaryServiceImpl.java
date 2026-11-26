@@ -1,69 +1,45 @@
 package com.jc2001.campustrade.service.impl;
 
+import com.jc2001.campustrade.common.DomainException;
+import com.jc2001.campustrade.common.ErrorCode;
+import com.jc2001.campustrade.dto.response.*;
+import com.jc2001.campustrade.repository.CategoryRepository;
+import com.jc2001.campustrade.repository.ItemConditionRepository;
+import com.jc2001.campustrade.repository.PickupPointRepository;
+import com.jc2001.campustrade.repository.TradeZoneRepository;
 import com.jc2001.campustrade.service.DictionaryService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import com.jc2001.campustrade.dto.response.Category;
-import com.jc2001.campustrade.dto.response.ItemCondition;
-import com.jc2001.campustrade.dto.response.PickupPoint;
-import com.jc2001.campustrade.dto.response.PickupPointType;
-import com.jc2001.campustrade.dto.response.TradeZone;
-import com.jc2001.campustrade.dto.response.ZoneType;
+
 import java.util.List;
 
-// GENERATED FROM openapi.yaml —— 请勿手工修改
-/**
- * DictionaryService 空实现。
- *
- * <p><b>所有方法均抛 UnsupportedOperationException</b>，用于标识「尚未实现」，
- * 避免骨架被误认为可用。
- *
- * <p>不注入 Repository、不访问数据库、不含事务逻辑（本步骤范围限定）。
- */
 @Service
 public class DictionaryServiceImpl implements DictionaryService {
-
-    /**
-     * 预设交易区域列表（R-15）（未实现）
-     *
-     * <p>operationId: <code>listTradeZones</code>
-     */
-    @Override
-    public List<TradeZone> listTradeZones(ZoneType zoneType, Boolean includeInactive) {
-        throw new UnsupportedOperationException(
-                "TODO: implement listTradeZones");
+    private final TradeZoneRepository zones;
+    private final PickupPointRepository pickupPoints;
+    private final CategoryRepository categories;
+    private final ItemConditionRepository conditions;
+    public DictionaryServiceImpl(TradeZoneRepository zones, PickupPointRepository pickupPoints,
+                                 CategoryRepository categories, ItemConditionRepository conditions) {
+        this.zones=zones; this.pickupPoints=pickupPoints; this.categories=categories; this.conditions=conditions;
     }
 
-    /**
-     * 按交易区域查询公共取货点（R-06）（未实现）
-     *
-     * <p>operationId: <code>listPickupPointsByZone</code>
-     */
-    @Override
-    public List<PickupPoint> listPickupPointsByZone(Long tradeZoneId, PickupPointType pointType) {
-        throw new UnsupportedOperationException(
-                "TODO: implement listPickupPointsByZone");
+    @Override public List<TradeZone> listTradeZones(ZoneType zoneType, Boolean includeInactive) {
+        boolean admin = isAdmin();
+        return zones.findForPublic(zoneType == null ? null : zoneType.name(), Boolean.TRUE.equals(includeInactive) && admin);
     }
 
-    /**
-     * 商品分类字典（FR-206）（未实现）
-     *
-     * <p>operationId: <code>listCategories</code>
-     */
-    @Override
-    public List<Category> listCategories() {
-        throw new UnsupportedOperationException(
-                "TODO: implement listCategories");
+    @Override public List<PickupPoint> listPickupPointsByZone(Long tradeZoneId, PickupPointType pointType) {
+        if (!zones.exists(tradeZoneId)) throw new DomainException(ErrorCode.TRADE_ZONE_NOT_FOUND);
+        return pickupPoints.findActiveByZone(tradeZoneId, pointType == null ? null : pointType.name());
     }
 
-    /**
-     * 商品成色字典（FR-207）（未实现）
-     *
-     * <p>operationId: <code>listItemConditions</code>
-     */
-    @Override
-    public List<ItemCondition> listItemConditions() {
-        throw new UnsupportedOperationException(
-                "TODO: implement listItemConditions");
-    }
+    @Override public List<Category> listCategories() { return categories.findActive(); }
+    @Override public List<ItemCondition> listItemConditions() { return conditions.findActive(); }
 
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
 }

@@ -1,7 +1,7 @@
 package com.jc2001.campustrade.controller;
 
 import com.jc2001.campustrade.common.ApiResponse;
-import com.jc2001.campustrade.common.PageResult;
+import com.jc2001.campustrade.common.TraceIdFilter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -16,6 +16,9 @@ import com.jc2001.campustrade.dto.request.RefreshTokenRequest;
 import com.jc2001.campustrade.dto.request.RegisterRequest;
 import com.jc2001.campustrade.dto.response.AuthTokenResponse;
 import com.jc2001.campustrade.dto.response.CurrentUserResponse;
+import com.jc2001.campustrade.service.AuthService;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
 
 // GENERATED FROM openapi.yaml —— 请勿手工修改；契约变更须走 api-freeze.md §4 流程
 /**
@@ -34,6 +37,9 @@ import com.jc2001.campustrade.dto.response.CurrentUserResponse;
 @RequestMapping("/api/v1")
 public class AuthController {
 
+    private final AuthService authService;
+    public AuthController(AuthService authService) { this.authService = authService; }
+
     /**
      * 用户注册（FR-101）
      *
@@ -48,9 +54,10 @@ public class AuthController {
     @PreAuthorize("permitAll()")
     @PostMapping("/auth/register")
     public ResponseEntity<ApiResponse<CurrentUserResponse>> registerUser(
-            @RequestBody RegisterRequest body
+            @Valid @RequestBody RegisterRequest body, HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement registerUser");
+        return ResponseEntity.status(201).body(ApiResponse.ok(authService.registerUser(body))
+                .withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -67,9 +74,9 @@ public class AuthController {
     @PreAuthorize("permitAll()")
     @PostMapping("/auth/login")
     public ResponseEntity<ApiResponse<AuthTokenResponse>> login(
-            @RequestBody LoginRequest body
+            @Valid @RequestBody LoginRequest body, HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement login");
+        return ResponseEntity.ok(ApiResponse.ok(authService.login(body)).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -86,9 +93,10 @@ public class AuthController {
     @PreAuthorize("permitAll()")
     @PostMapping("/auth/refresh")
     public ResponseEntity<ApiResponse<AuthTokenResponse>> refreshToken(
-            @RequestBody RefreshTokenRequest body
+            @Valid @RequestBody RefreshTokenRequest body, HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement refreshToken");
+        authService.refreshToken(body);
+        return ResponseEntity.<ApiResponse<AuthTokenResponse>>status(501).build();
     }
 
     /**
@@ -103,8 +111,9 @@ public class AuthController {
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/auth/logout")
-    public ResponseEntity<ApiResponse<Void>> logout() {
-        throw new UnsupportedOperationException("TODO: implement logout");
+    public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
+        authService.logout();
+        return ResponseEntity.ok(ApiResponse.<Void>ok().withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -119,8 +128,8 @@ public class AuthController {
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/auth/me")
-    public ResponseEntity<ApiResponse<CurrentUserResponse>> getCurrentUser() {
-        throw new UnsupportedOperationException("TODO: implement getCurrentUser");
+    public ResponseEntity<ApiResponse<CurrentUserResponse>> getCurrentUser(HttpServletRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(authService.getCurrentUser()).withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
     /**
@@ -136,9 +145,10 @@ public class AuthController {
     @PreAuthorize("isAuthenticated()")
     @PutMapping("/auth/password")
     public ResponseEntity<ApiResponse<Void>> changePassword(
-            @RequestBody ChangePasswordRequest body
+            @Valid @RequestBody ChangePasswordRequest body, HttpServletRequest request
     ) {
-        throw new UnsupportedOperationException("TODO: implement changePassword");
+        authService.changePassword(body);
+        return ResponseEntity.ok(ApiResponse.<Void>ok().withTraceId(TraceIdFilter.currentTraceId(request)));
     }
 
 }

@@ -50,6 +50,13 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(DomainException.class)
+    public ResponseEntity<ErrorResponse> handleDomainException(DomainException ex, HttpServletRequest request) {
+        ErrorCode code = ex.getErrorCode();
+        return ResponseEntity.status(code.getHttpStatus())
+                .body(ErrorResponse.of(code, ex.getMessage(), ex.getDetails(), TraceIdFilter.currentTraceId(request)));
+    }
+
     // =================================================================
     // 400 —— 语法/格式错误
     // =================================================================

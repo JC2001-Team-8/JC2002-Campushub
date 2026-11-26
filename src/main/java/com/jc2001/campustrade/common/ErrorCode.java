@@ -49,7 +49,30 @@ public enum ErrorCode {
     NOT_FOUND("COMMON_RESOURCE_NOT_FOUND", HttpStatus.NOT_FOUND, "请求的资源不存在"),
 
     /** 409：状态或并发冲突（占用冲突 / 终态保护 / 幂等冲突 / 乐观锁）。 */
-    CONFLICT("COMMON_VERSION_CONFLICT", HttpStatus.CONFLICT, "数据已被其他请求修改，请刷新后重试");
+    CONFLICT("COMMON_VERSION_CONFLICT", HttpStatus.CONFLICT, "数据已被其他请求修改，请刷新后重试"),
+
+    // 账户与共享内核（均逐字对应 docs/iteration1/design/error-codes.md）
+    AUTH_INVALID_CREDENTIALS("AUTH_INVALID_CREDENTIALS", HttpStatus.UNAUTHORIZED, "用户名或密码错误"),
+    AUTH_TOKEN_EXPIRED("AUTH_TOKEN_EXPIRED", HttpStatus.UNAUTHORIZED, "登录已过期，请重新登录"),
+    AUTH_USERNAME_TAKEN("AUTH_USERNAME_TAKEN", HttpStatus.CONFLICT, "用户名或邮箱已被占用"),
+    COMMON_NOT_IMPLEMENTED("COMMON_NOT_IMPLEMENTED", HttpStatus.NOT_IMPLEMENTED, "此功能暂未启用"),
+    USER_NOT_FOUND("USER_NOT_FOUND", HttpStatus.NOT_FOUND, "用户不存在"),
+    USER_TRADE_ZONE_REQUIRED("USER_TRADE_ZONE_REQUIRED", HttpStatus.UNPROCESSABLE_ENTITY, "请先设置常用交易区域"),
+    TRADE_ZONE_NOT_FOUND("TRADE_ZONE_NOT_FOUND", HttpStatus.NOT_FOUND, "交易区域不存在或已停用"),
+    PICKUP_POINT_NOT_FOUND("PICKUP_POINT_NOT_FOUND", HttpStatus.NOT_FOUND, "取货点不存在"),
+    PICKUP_POINT_ZONE_MISMATCH("PICKUP_POINT_ZONE_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY, "取货点不属于指定交易区域"),
+    USER_RESTRICTED_CANNOT_WRITE("USER_RESTRICTED_CANNOT_WRITE", HttpStatus.FORBIDDEN, "处罚期间不能执行此操作"),
+    COMMON_IDEMPOTENCY_KEY_REUSED("COMMON_IDEMPOTENCY_KEY_REUSED", HttpStatus.CONFLICT, "同一幂等键不能用于不同请求"),
+    ITEM_NOT_FOUND("ITEM_NOT_FOUND", HttpStatus.NOT_FOUND, "商品不存在"),
+    ITEM_LOCKED_BY_OCCUPATION("ITEM_LOCKED_BY_OCCUPATION", HttpStatus.CONFLICT, "商品正在交易中，无法修改"),
+    ITEM_STATUS_NOT_EDITABLE("ITEM_STATUS_NOT_EDITABLE", HttpStatus.CONFLICT, "当前商品状态不可编辑"),
+    ITEM_BANNED_CANNOT_RELIST("ITEM_BANNED_CANNOT_RELIST", HttpStatus.CONFLICT, "违规下架商品不能自行重新上架"),
+    ITEM_STATUS_NOT_SWAPPABLE("ITEM_STATUS_NOT_SWAPPABLE", HttpStatus.CONFLICT, "当前商品状态不能设置交换意愿"),
+    TRADE_ZONE_NOT_SELECTED("TRADE_ZONE_NOT_SELECTED", HttpStatus.UNPROCESSABLE_ENTITY, "请先将该交易区域设为常用区域"),
+    ITEM_TRADE_ZONE_NOT_SELECTED("ITEM_TRADE_ZONE_NOT_SELECTED", HttpStatus.UNPROCESSABLE_ENTITY, "所选交易区域不在已勾选范围内"),
+    FILE_TOO_LARGE("FILE_TOO_LARGE", HttpStatus.UNPROCESSABLE_ENTITY, "图片不能超过 5 MB"),
+    FILE_TYPE_NOT_ALLOWED("FILE_TYPE_NOT_ALLOWED", HttpStatus.UNPROCESSABLE_ENTITY, "仅支持 JPG、PNG 或 WebP 图片"),
+    COMMON_INVALID_SORT_FIELD("COMMON_INVALID_SORT_FIELD", HttpStatus.BAD_REQUEST, "不支持该排序字段");
 
     // =================================================================
     // TODO（下一步按 error-codes.md 补齐，不得自行命名）
