@@ -19,4 +19,27 @@ public interface ItemService {
     ItemDetail relist(Long userId, Long id);
     ItemDetail preference(Long userId, Long id, UpdateSwapPreferenceRequest request);
     Map<String,Object> occupation(Long userId, Long id, boolean admin);
+
+    /**
+     * 切片 3 依赖：下单占用商品（{@code items.status → RESERVED} + 写 {@code item_occupations}）。
+     *
+     * <p>必须在调用方事务内执行，保证「占用台账 + 商品状态投影」原子（R-16 / DD-01）。
+     * <p>占用失败抛 {@code ITEM_ALREADY_RESERVED} / {@code ITEM_RESERVED_BY_SWAP} / {@code ITEM_NOT_PURCHASABLE}。
+     */
+    void occupyForOrder(Long itemId, Long orderId, Long actorId);
+
+    /** 切片 3 依赖：释放订单占用（取消/超时）。幂等：无进行中占用时直接返回。 */
+    void releaseOrderOccupation(Long itemId, Long orderId, Long actorId, String reason);
+
+    /** 切片 3 依赖：确认收货后把占用态商品置为 {@code SOLD}（幂等）。 */
+    void markSold(Long itemId, Long actorId);
+
+    /** 切片 3B 依赖：交换提议占用（items.status → SWAPPING + 交换机占用台账）。 */
+    void occupyForSwap(Long itemId, Long proposalId, Long actorId);
+
+    /** 切片 3B 依赖：释放交换占用（拒绝/取消/过期）。幂等。 */
+    void releaseSwapOccupation(Long itemId, Long proposalId, Long actorId, String reason);
+
+    /** 切片 3B 依赖：交换完成后把占用态商品置为 SOLD（幂等）。 */
+    void markSwapSold(Long itemId, Long actorId);
 }

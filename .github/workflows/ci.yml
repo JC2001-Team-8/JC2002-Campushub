@@ -1,0 +1,61 @@
+name: build-and-test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, 'feat/**']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: mvn verify (JDK 11 + PostgreSQL 15)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: campus_trade
+          POSTGRES_USER: campus_trade
+          POSTGRES_PASSWORD: campus_trade
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports:
+          - 5432:5432
+        # 等健康检查通过再跑测试，避免 Flyway 抢跑
+        options: >-
+          --health-cmd "pg_isready -U campus_trade -d campus_trade"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+
+      - name: Build and run tests
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/campus_trade
+          SPRING_DATASOURCE_USERNAME: campus_trade
+          SPRING_DATASOURCE_PASSWORD: campus_trade
+          APP_JWT_SECRET: ci_only_secret_at_least_32_bytes_long_xxxx
+          APP_INTERNAL_TOKEN: ci-internal-token
+        run: mvn -B -ntp clean package
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports
+          if-no-files-found: ignore
+          retention-days: 7

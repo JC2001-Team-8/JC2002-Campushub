@@ -12,6 +12,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -115,6 +116,20 @@ public class GlobalExceptionHandler {
         return build(ErrorCode.VALIDATION_ERROR, "参数校验失败", List.of(detail), request);
     }
 
+    /**
+     * 缺少必填请求头（如 Idempotency-Key）。
+     *
+     * <p>契约对缺失必填头的语义是 400 {@code VALIDATION_INVALID_PARAMETER}，
+     * 不能落到兜底 500（否则前端无法区分「参数缺失」与「服务端故障」）。
+     */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex,
+                                                            HttpServletRequest request) {
+        Map<String, String> detail = new LinkedHashMap<>();
+        detail.put("field", ex.getHeaderName());
+        detail.put("issue", "缺少必填请求头");
+        return build(ErrorCode.VALIDATION_ERROR, "缺少必填请求头", List.of(detail), request);
+    }
     /**
      * 参数类型不匹配（如把字符串传给 int）。
      */

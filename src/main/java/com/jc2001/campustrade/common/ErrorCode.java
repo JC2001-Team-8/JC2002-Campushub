@@ -72,7 +72,68 @@ public enum ErrorCode {
     ITEM_TRADE_ZONE_NOT_SELECTED("ITEM_TRADE_ZONE_NOT_SELECTED", HttpStatus.UNPROCESSABLE_ENTITY, "所选交易区域不在已勾选范围内"),
     FILE_TOO_LARGE("FILE_TOO_LARGE", HttpStatus.UNPROCESSABLE_ENTITY, "图片不能超过 5 MB"),
     FILE_TYPE_NOT_ALLOWED("FILE_TYPE_NOT_ALLOWED", HttpStatus.UNPROCESSABLE_ENTITY, "仅支持 JPG、PNG 或 WebP 图片"),
-    COMMON_INVALID_SORT_FIELD("COMMON_INVALID_SORT_FIELD", HttpStatus.BAD_REQUEST, "不支持该排序字段");
+    COMMON_INVALID_SORT_FIELD("COMMON_INVALID_SORT_FIELD", HttpStatus.BAD_REQUEST, "不支持该排序字段"),
+
+    // =================================================================
+    // 购物车（slice 3A）
+    // =================================================================
+    CART_ITEM_NOT_FOUND("CART_ITEM_NOT_FOUND", HttpStatus.NOT_FOUND, "购物车条目不存在"),
+    CART_OWN_ITEM_NOT_ALLOWED("CART_OWN_ITEM_NOT_ALLOWED", HttpStatus.UNPROCESSABLE_ENTITY, "不能加入自己发布的商品"),
+    CART_ITEM_NOT_PURCHASABLE("CART_ITEM_NOT_PURCHASABLE", HttpStatus.UNPROCESSABLE_ENTITY, "该条目当前不可结算"),
+
+    // =================================================================
+    // 商品占用冲突（slice 3A）
+    // =================================================================
+    ITEM_ALREADY_RESERVED("ITEM_ALREADY_RESERVED", HttpStatus.CONFLICT, "商品已被其他订单占用"),
+    ITEM_RESERVED_BY_SWAP("ITEM_RESERVED_BY_SWAP", HttpStatus.CONFLICT, "商品正在交换中"),
+    ITEM_NOT_PURCHASABLE("ITEM_NOT_PURCHASABLE", HttpStatus.UNPROCESSABLE_ENTITY, "商品当前不可购买"),
+    // =================================================================
+    // 订单（slice 3A）
+    // =================================================================
+    ORDER_NOT_FOUND("ORDER_NOT_FOUND", HttpStatus.NOT_FOUND, "订单不存在"),
+    ORDER_TIMEOUT_RELEASED("ORDER_TIMEOUT_RELEASED", HttpStatus.CONFLICT, "订单已超时取消，商品已释放"),
+    ORDER_ALREADY_CANCELLED("ORDER_ALREADY_CANCELLED", HttpStatus.CONFLICT, "订单已取消"),
+    ORDER_STATUS_NOT_PAYABLE("ORDER_STATUS_NOT_PAYABLE", HttpStatus.CONFLICT, "当前状态不可付款"),
+    ORDER_CANNOT_CANCEL_AFTER_PAID("ORDER_CANNOT_CANCEL_AFTER_PAID", HttpStatus.CONFLICT, "已付款订单不可自助取消"),
+    ORDER_STATUS_NOT_DELIVERABLE("ORDER_STATUS_NOT_DELIVERABLE", HttpStatus.CONFLICT, "当前状态不可标记交付"),
+    ORDER_PICKUP_POINT_NOT_SELECTED("ORDER_PICKUP_POINT_NOT_SELECTED", HttpStatus.CONFLICT, "尚未选择取货点"),
+    ORDER_NOT_PAID_FOR_PICKUP_SELECTION("ORDER_NOT_PAID_FOR_PICKUP_SELECTION", HttpStatus.CONFLICT, "未付款不可选择取货点"),
+    ORDER_ALREADY_DELIVERED("ORDER_ALREADY_DELIVERED", HttpStatus.CONFLICT, "订单已交付，不可修改取货点"),
+    ORDER_STATUS_NOT_DELIVERED("ORDER_STATUS_NOT_DELIVERED", HttpStatus.CONFLICT, "订单未交付，不可确认收货"),
+    ORDER_ITEM_SELLER_MISMATCH("ORDER_ITEM_SELLER_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY, "订单明细跨卖家"),
+
+    // =================================================================
+    // 交换包 / 交换提议 / 交换码（slice 3B）
+    // =================================================================
+    TRADE_ZONE_MISMATCH("TRADE_ZONE_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY, "交易区域不一致"),
+    SWAP_BUNDLE_NOT_FOUND("SWAP_BUNDLE_NOT_FOUND", HttpStatus.NOT_FOUND, "交换包不存在"),
+    SWAP_BUNDLE_ITEM_COUNT_OUT_OF_RANGE("SWAP_BUNDLE_ITEM_COUNT_OUT_OF_RANGE", HttpStatus.UNPROCESSABLE_ENTITY, "交换包件数必须为 1–5 件"),
+    SWAP_BUNDLE_ITEM_NOT_OWNED("SWAP_BUNDLE_ITEM_NOT_OWNED", HttpStatus.UNPROCESSABLE_ENTITY, "包内物品不属于本人"),
+    SWAP_ITEM_IN_ACTIVE_BUNDLE("SWAP_ITEM_IN_ACTIVE_BUNDLE", HttpStatus.CONFLICT, "物品已在其他进行中的交换包"),
+    SWAP_BUNDLE_LOCKED("SWAP_BUNDLE_LOCKED", HttpStatus.CONFLICT, "交换包被进行中的提议引用，不可编辑或删除"),
+    SWAP_BUNDLE_STATUS_NOT_EDITABLE("SWAP_BUNDLE_STATUS_NOT_EDITABLE", HttpStatus.CONFLICT, "交换包当前状态不可编辑"),
+    SWAP_PROPOSAL_NOT_FOUND("SWAP_PROPOSAL_NOT_FOUND", HttpStatus.NOT_FOUND, "交换提议不存在"),
+    SWAP_ITEM_OCCUPIED("SWAP_ITEM_OCCUPIED", HttpStatus.CONFLICT, "商品已被其他进行中交换占用"),
+    SWAP_TARGET_NOT_ACCEPTING("SWAP_TARGET_NOT_ACCEPTING", HttpStatus.UNPROCESSABLE_ENTITY, "目标商品不接受交换"),
+    SWAP_SELF_PROPOSAL_NOT_ALLOWED("SWAP_SELF_PROPOSAL_NOT_ALLOWED", HttpStatus.UNPROCESSABLE_ENTITY, "不能与自己交换"),
+    SWAP_PROPOSAL_ALREADY_ACCEPTED("SWAP_PROPOSAL_ALREADY_ACCEPTED", HttpStatus.CONFLICT, "提议已被接受"),
+    SWAP_PROPOSAL_ALREADY_FINALIZED("SWAP_PROPOSAL_ALREADY_FINALIZED", HttpStatus.CONFLICT, "提议已终结"),
+    SWAP_PROPOSAL_COUNTERED("SWAP_PROPOSAL_COUNTERED", HttpStatus.CONFLICT, "提议已被反提案"),
+    SWAP_COUNTER_NOT_ALLOWED("SWAP_COUNTER_NOT_ALLOWED", HttpStatus.CONFLICT, "反提案仅允许一轮"),
+    SWAP_PARTIAL_ACCEPT_NOT_SUPPORTED("SWAP_PARTIAL_ACCEPT_NOT_SUPPORTED", HttpStatus.UNPROCESSABLE_ENTITY, "不支持部分接受，必须整包接受"),
+    SWAP_PROPOSAL_VOIDED("SWAP_PROPOSAL_VOIDED", HttpStatus.CONFLICT, "提议已整笔作废"),
+    SWAP_CODE_NOT_ISSUED("SWAP_CODE_NOT_ISSUED", HttpStatus.CONFLICT, "交换码尚未生成"),
+    SWAP_CODE_INVALID("SWAP_CODE_INVALID", HttpStatus.UNPROCESSABLE_ENTITY, "交换码错误"),
+    SWAP_CODE_ALREADY_VERIFIED("SWAP_CODE_ALREADY_VERIFIED", HttpStatus.CONFLICT, "交换码已核销"),
+    SWAP_CODE_NOT_VERIFIED("SWAP_CODE_NOT_VERIFIED", HttpStatus.CONFLICT, "未核销交换码不可确认"),
+
+    // =================================================================
+    // 评价（slice 3B：交换互评）
+    // =================================================================
+    REVIEW_TRANSACTION_NOT_COMPLETED("REVIEW_TRANSACTION_NOT_COMPLETED", HttpStatus.CONFLICT, "交易未完成不可评价"),
+    REVIEW_WINDOW_CLOSED("REVIEW_WINDOW_CLOSED", HttpStatus.CONFLICT, "互评窗口已关闭"),
+    REVIEW_ALREADY_SUBMITTED("REVIEW_ALREADY_SUBMITTED", HttpStatus.CONFLICT, "该方已评价过"),
+    REVIEW_RATING_OUT_OF_RANGE("REVIEW_RATING_OUT_OF_RANGE", HttpStatus.BAD_REQUEST, "评分越界");
 
     // =================================================================
     // TODO（下一步按 error-codes.md 补齐，不得自行命名）

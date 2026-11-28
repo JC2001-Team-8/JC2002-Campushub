@@ -3,6 +3,7 @@ package com.jc2001.campustrade.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jc2001.campustrade.common.ErrorCode;
 import com.jc2001.campustrade.common.ErrorResponse;
+import com.jc2001.campustrade.security.InternalTokenFilter;
 import com.jc2001.campustrade.security.JwtAuthenticationFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,6 +93,7 @@ public class SecurityConfig {
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final InternalTokenFilter internalTokenFilter;
     private final ObjectMapper objectMapper;
 
     @Value("${app.cors.enabled:true}")
@@ -112,8 +114,10 @@ public class SecurityConfig {
     @Value("${app.cors.max-age:3600}")
     private long corsMaxAge;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, InternalTokenFilter internalTokenFilter,
+                          ObjectMapper objectMapper) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.internalTokenFilter = internalTokenFilter;
         this.objectMapper = objectMapper;
     }
 
@@ -144,7 +148,7 @@ public class SecurityConfig {
                 .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .antMatchers(HttpMethod.GET, "/api/v1/items", "/api/v1/items/*", "/api/v1/users/*/public-profile").permitAll()
                 .antMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                .antMatchers("/api/v1/internal/**").denyAll()
+                .antMatchers("/api/v1/internal/**").hasRole("SYSTEM")
                 .antMatchers("/api/v1/**").authenticated()
                 .anyRequest().permitAll()
                 .and()
@@ -153,7 +157,8 @@ public class SecurityConfig {
                 .httpBasic().disable()
                 .logout().disable()
                 // JWT 过滤器置于用户名密码过滤器之前
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(internalTokenFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
