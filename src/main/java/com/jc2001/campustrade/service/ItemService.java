@@ -33,4 +33,13 @@ public interface ItemService {
 
     /** 切片 3 依赖：确认收货后把占用态商品置为 {@code SOLD}（幂等）。 */
     void markSold(Long itemId, Long actorId);
+
+    /** 切片 3B 依赖：交换提议占用（items.status → SWAPPING + 交换机占用台账）。 */
+    void occupyForSwap(Long itemId, Long proposalId, Long actorId);
+
+    /** 切片 3B 依赖：释放交换占用（拒绝/取消/过期）。幂等。 */
+    void releaseSwapOccupation(Long itemId, Long proposalId, Long actorId, String reason);
+
+    /** 切片 3B 依赖：交换完成后把占用态商品置为 SOLD（幂等）。 */
+    void markSwapSold(Long itemId, Long actorId);
 }

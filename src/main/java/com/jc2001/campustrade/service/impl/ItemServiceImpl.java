@@ -123,6 +123,33 @@ public class ItemServiceImpl implements ItemService {
                 + "WHERE id=? AND status='RESERVED'", actorId, itemId);
     }
 
+    @Override public void occupyForSwap(Long itemId, Long proposalId, Long actorId) {
+        int n = jdbc.update("UPDATE items SET status='SWAPPING', version=version+1, updated_by=? "
+                + "WHERE id=? AND status='IN_SALE' AND deleted_at IS NULL", actorId, itemId);
+        if (n != 1) {
+            String st = rawStatus(itemId);
+            if (st == null) throw new DomainException(ErrorCode.ITEM_NOT_FOUND);
+            if ("RESERVED".equals(st)) throw new DomainException(ErrorCode.ITEM_ALREADY_RESERVED);
+            if ("SWAPPING".equals(st)) throw new DomainException(ErrorCode.SWAP_ITEM_OCCUPIED);
+            throw new DomainException(ErrorCode.ITEM_NOT_PURCHASABLE);
+        }
+        jdbc.update("INSERT INTO item_occupations(item_id, ref_type, ref_id, created_by, updated_by) "
+                + "VALUES (?, 'SWAP'::occupation_type, ?, ?, ?)", itemId, proposalId, actorId, actorId);
+    }
+
+    @Override public void releaseSwapOccupation(Long itemId, Long proposalId, Long actorId, String reason) {
+        int n = jdbc.update("UPDATE item_occupations SET released_at=now(), release_reason=?, version=version+1, updated_by=? "
+                + "WHERE item_id=? AND ref_type='SWAP'::occupation_type AND ref_id=? AND released_at IS NULL",
+                reason, actorId, itemId, proposalId);
+        if (n == 0) return;
+        jdbc.update("UPDATE items SET status='IN_SALE', version=version+1, updated_by=? "
+                + "WHERE id=? AND status='SWAPPING'", actorId, itemId);
+    }
+
+    @Override public void markSwapSold(Long itemId, Long actorId) {
+        jdbc.update("UPDATE items SET status='SOLD', version=version+1, updated_by=? "
+                + "WHERE id=? AND status='SWAPPING'", actorId, itemId);
+    }
     private String rawStatus(Long itemId) {
         try { return jdbc.queryForObject("SELECT status::text FROM items WHERE id=? AND deleted_at IS NULL", String.class, itemId); }
         catch (org.springframework.dao.EmptyResultDataAccessException ex) { return null; }

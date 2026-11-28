@@ -20,7 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class InternalTaskServiceImpl implements InternalTaskService {
 
-    private static final Long ACTOR_SYSTEM = 0L; // 系统操作者（审计字段）
+    /** 审计字段 created_by/updated_by 有外键约束，系统操作使用管理员账号作为 actor。 */
+    private Long systemActor() {
+        List<Long> ids = jdbc.queryForList("SELECT id FROM users WHERE role='ADMIN' ORDER BY id LIMIT 1", Long.class);
+        if (!ids.isEmpty()) return ids.get(0);
+        List<Long> any = jdbc.queryForList("SELECT id FROM users ORDER BY id LIMIT 1", Long.class);
+        return any.isEmpty() ? null : any.get(0);
+    }
 
     private final JdbcTemplate jdbc;
     private final ItemService items;
@@ -39,10 +45,10 @@ public class InternalTaskServiceImpl implements InternalTaskService {
             int n = jdbc.update(
                     "UPDATE orders SET status='TIMEOUT_CANCELLED', cancelled_at=now(), cancel_reason='PAYMENT_TIMEOUT', "
                     + "version=version+1, updated_by=? WHERE id=? AND status='PENDING_PAYMENT' AND now() >= expires_at",
-                    ACTOR_SYSTEM, orderId);
+                    systemActor(), orderId);
             if (n != 1) { skipped++; continue; } // 与付款并发时被抢先，属正常跳过
             for (Long itemId : jdbc.queryForList("SELECT item_id FROM order_items WHERE order_id=?", Long.class, orderId)) {
-                items.releaseOrderOccupation(itemId, orderId, ACTOR_SYSTEM, "PAYMENT_TIMEOUT");
+                items.releaseOrderOccupation(itemId, orderId, systemActor(), "PAYMENT_TIMEOUT");
             }
             processed++;
         }
@@ -55,8 +61,29 @@ public class InternalTaskServiceImpl implements InternalTaskService {
     }
 
     @Override @Transactional public ScheduledTaskResult runSwapProposalExpireTask() {
-        // 切片 3B 实现
-        throw new UnsupportedOperationException("TODO(slice3B): implement runSwapProposalExpireTask");
+        List<Long> ids = jdbc.queryForList(
+                "SELECT id FROM swap_proposals WHERE status='PENDING' AND now() >= expires_at ORDER BY id LIMIT 500", Long.class);
+        int processed = 0, skipped = 0;
+        for (Long proposalId : ids) {
+            int n = jdbc.update(
+                    "UPDATE swap_proposals SET status='EXPIRED', termination_reason='EXPIRED_72H', version=version+1 "
+                    + "WHERE id=? AND status='PENDING' AND now() >= expires_at", proposalId);
+            if (n != 1) { skipped++; continue; }
+            List<Long> itemIds = jdbc.queryForList(
+                    "SELECT item_id FROM swap_proposal_items WHERE swap_proposal_id=?", Long.class, proposalId);
+            for (Long itemId : itemIds) {
+                items.releaseSwapOccupation(itemId, proposalId, systemActor(), "EXPIRED_72H");
+            }
+            jdbc.update("UPDATE swap_bundles SET status='PACKED', version=version+1 WHERE id=("
+                    + "SELECT proposer_bundle_id FROM swap_proposals WHERE id=?) AND status='IN_SWAP'", proposalId);
+            processed++;
+        }
+        ScheduledTaskResult result = new ScheduledTaskResult();
+        result.setTask("runSwapProposalExpireTask");
+        result.setProcessed(processed);
+        result.setSkipped(skipped);
+        result.setExecutedAt(Instant.now());
+        return result;
     }
 
     @Override public ScheduledTaskResult runPenaltyAutoUnbanTask() {
