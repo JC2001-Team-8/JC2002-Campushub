@@ -72,7 +72,35 @@ public enum ErrorCode {
     ITEM_TRADE_ZONE_NOT_SELECTED("ITEM_TRADE_ZONE_NOT_SELECTED", HttpStatus.UNPROCESSABLE_ENTITY, "所选交易区域不在已勾选范围内"),
     FILE_TOO_LARGE("FILE_TOO_LARGE", HttpStatus.UNPROCESSABLE_ENTITY, "图片不能超过 5 MB"),
     FILE_TYPE_NOT_ALLOWED("FILE_TYPE_NOT_ALLOWED", HttpStatus.UNPROCESSABLE_ENTITY, "仅支持 JPG、PNG 或 WebP 图片"),
-    COMMON_INVALID_SORT_FIELD("COMMON_INVALID_SORT_FIELD", HttpStatus.BAD_REQUEST, "不支持该排序字段");
+    COMMON_INVALID_SORT_FIELD("COMMON_INVALID_SORT_FIELD", HttpStatus.BAD_REQUEST, "不支持该排序字段"),
+
+    // =================================================================
+    // 购物车（slice 3A）
+    // =================================================================
+    CART_ITEM_NOT_FOUND("CART_ITEM_NOT_FOUND", HttpStatus.NOT_FOUND, "购物车条目不存在"),
+    CART_OWN_ITEM_NOT_ALLOWED("CART_OWN_ITEM_NOT_ALLOWED", HttpStatus.UNPROCESSABLE_ENTITY, "不能加入自己发布的商品"),
+    CART_ITEM_NOT_PURCHASABLE("CART_ITEM_NOT_PURCHASABLE", HttpStatus.UNPROCESSABLE_ENTITY, "该条目当前不可结算"),
+
+    // =================================================================
+    // 商品占用冲突（slice 3A）
+    // =================================================================
+    ITEM_ALREADY_RESERVED("ITEM_ALREADY_RESERVED", HttpStatus.CONFLICT, "商品已被其他订单占用"),
+    ITEM_RESERVED_BY_SWAP("ITEM_RESERVED_BY_SWAP", HttpStatus.CONFLICT, "商品正在交换中"),
+    ITEM_NOT_PURCHASABLE("ITEM_NOT_PURCHASABLE", HttpStatus.UNPROCESSABLE_ENTITY, "商品当前不可购买"),
+    // =================================================================
+    // 订单（slice 3A）
+    // =================================================================
+    ORDER_NOT_FOUND("ORDER_NOT_FOUND", HttpStatus.NOT_FOUND, "订单不存在"),
+    ORDER_TIMEOUT_RELEASED("ORDER_TIMEOUT_RELEASED", HttpStatus.CONFLICT, "订单已超时取消，商品已释放"),
+    ORDER_ALREADY_CANCELLED("ORDER_ALREADY_CANCELLED", HttpStatus.CONFLICT, "订单已取消"),
+    ORDER_STATUS_NOT_PAYABLE("ORDER_STATUS_NOT_PAYABLE", HttpStatus.CONFLICT, "当前状态不可付款"),
+    ORDER_CANNOT_CANCEL_AFTER_PAID("ORDER_CANNOT_CANCEL_AFTER_PAID", HttpStatus.CONFLICT, "已付款订单不可自助取消"),
+    ORDER_STATUS_NOT_DELIVERABLE("ORDER_STATUS_NOT_DELIVERABLE", HttpStatus.CONFLICT, "当前状态不可标记交付"),
+    ORDER_PICKUP_POINT_NOT_SELECTED("ORDER_PICKUP_POINT_NOT_SELECTED", HttpStatus.CONFLICT, "尚未选择取货点"),
+    ORDER_NOT_PAID_FOR_PICKUP_SELECTION("ORDER_NOT_PAID_FOR_PICKUP_SELECTION", HttpStatus.CONFLICT, "未付款不可选择取货点"),
+    ORDER_ALREADY_DELIVERED("ORDER_ALREADY_DELIVERED", HttpStatus.CONFLICT, "订单已交付，不可修改取货点"),
+    ORDER_STATUS_NOT_DELIVERED("ORDER_STATUS_NOT_DELIVERED", HttpStatus.CONFLICT, "订单未交付，不可确认收货"),
+    ORDER_ITEM_SELLER_MISMATCH("ORDER_ITEM_SELLER_MISMATCH", HttpStatus.UNPROCESSABLE_ENTITY, "订单明细跨卖家");
 
     // =================================================================
     // TODO（下一步按 error-codes.md 补齐，不得自行命名）

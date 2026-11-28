@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import com.jc2001.campustrade.dto.response.ScheduledTaskResult;
+import com.jc2001.campustrade.service.InternalTaskService;
 
 // GENERATED FROM openapi.yaml —— 请勿手工修改；契约变更须走 api-freeze.md §4 流程
 /**
@@ -29,6 +30,10 @@ import com.jc2001.campustrade.dto.response.ScheduledTaskResult;
 @RequestMapping("/api/v1")
 public class InternalController {
 
+    private final InternalTaskService tasks;
+
+    public InternalController(InternalTaskService tasks) { this.tasks = tasks; }
+
     /**
      * 订单超时释放（FR-601 / FR-307 / R-07）
      *
@@ -44,7 +49,7 @@ public class InternalController {
     @PreAuthorize("hasRole('SYSTEM')")
     @PostMapping("/internal/tasks/order-timeout-release")
     public ResponseEntity<ApiResponse<ScheduledTaskResult>> runOrderTimeoutReleaseTask() {
-        throw new UnsupportedOperationException("TODO: implement runOrderTimeoutReleaseTask");
+        return ResponseEntity.ok(ApiResponse.ok(tasks.runOrderTimeoutReleaseTask()));
     }
 
     /**
@@ -62,7 +67,7 @@ public class InternalController {
     @PreAuthorize("hasRole('SYSTEM')")
     @PostMapping("/internal/tasks/swap-proposal-expire")
     public ResponseEntity<ApiResponse<ScheduledTaskResult>> runSwapProposalExpireTask() {
-        throw new UnsupportedOperationException("TODO: implement runSwapProposalExpireTask");
+        return ResponseEntity.ok(ApiResponse.ok(tasks.runSwapProposalExpireTask()));
     }
 
     /**
@@ -80,7 +85,7 @@ public class InternalController {
     @PreAuthorize("hasRole('SYSTEM')")
     @PostMapping("/internal/tasks/penalty-auto-unban")
     public ResponseEntity<ApiResponse<ScheduledTaskResult>> runPenaltyAutoUnbanTask() {
-        throw new UnsupportedOperationException("TODO: implement runPenaltyAutoUnbanTask");
+        return ResponseEntity.ok(ApiResponse.ok(tasks.runPenaltyAutoUnbanTask()));
     }
 
     /**
@@ -98,7 +103,7 @@ public class InternalController {
     @PreAuthorize("hasRole('SYSTEM')")
     @PostMapping("/internal/tasks/review-window-close")
     public ResponseEntity<ApiResponse<ScheduledTaskResult>> runReviewWindowCloseTask() {
-        throw new UnsupportedOperationException("TODO: implement runReviewWindowCloseTask");
+        return ResponseEntity.ok(ApiResponse.ok(tasks.runReviewWindowCloseTask()));
     }
 
 }

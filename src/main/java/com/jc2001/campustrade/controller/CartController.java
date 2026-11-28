@@ -14,6 +14,7 @@ import com.jc2001.campustrade.dto.request.AddCartItemRequest;
 import com.jc2001.campustrade.dto.request.UpdateCartItemRequest;
 import com.jc2001.campustrade.dto.response.CartItem;
 import com.jc2001.campustrade.dto.response.CartView;
+import com.jc2001.campustrade.service.CartService;
 
 // GENERATED FROM openapi.yaml —— 请勿手工修改；契约变更须走 api-freeze.md §4 流程
 /**
@@ -32,6 +33,10 @@ import com.jc2001.campustrade.dto.response.CartView;
 @RequestMapping("/api/v1")
 public class CartController {
 
+    private final CartService cartService;
+
+    public CartController(CartService cartService) { this.cartService = cartService; }
+
     /**
      * 查看购物车（按卖家分组）（FR-302）
      *
@@ -45,7 +50,7 @@ public class CartController {
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/cart")
     public ResponseEntity<ApiResponse<CartView>> getCart() {
-        throw new UnsupportedOperationException("TODO: implement getCart");
+        return ResponseEntity.ok(ApiResponse.ok(cartService.getCart()));
     }
 
     /**
@@ -66,7 +71,7 @@ public class CartController {
             @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody AddCartItemRequest body
     ) {
-        throw new UnsupportedOperationException("TODO: implement addCartItem");
+        return ResponseEntity.status(201).body(ApiResponse.ok(cartService.addCartItem(idempotencyKey, body)));
     }
 
     /**
@@ -86,7 +91,7 @@ public class CartController {
             @Parameter(description = "") @PathVariable("cartItemId") Long cartItemId,
             @RequestBody UpdateCartItemRequest body
     ) {
-        throw new UnsupportedOperationException("TODO: implement updateCartItem");
+        return ResponseEntity.ok(ApiResponse.ok(cartService.updateCartItem(cartItemId, body)));
     }
 
     /**
@@ -102,10 +107,11 @@ public class CartController {
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/cart/items/{cartItemId}")
-    public ResponseEntity<ApiResponse<Void>> removeCartItem(
+    public ResponseEntity<Void> removeCartItem(
             @Parameter(description = "") @PathVariable("cartItemId") Long cartItemId
     ) {
-        throw new UnsupportedOperationException("TODO: implement removeCartItem");
+        cartService.removeCartItem(cartItemId);
+        return ResponseEntity.noContent().build();
     }
 
 }

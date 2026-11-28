@@ -91,6 +91,43 @@ public class ItemServiceImpl implements ItemService {
     @Override @Transactional public ItemDetail preference(Long uid,Long id,UpdateSwapPreferenceRequest r){ensureWritable(uid);Map<String,Object> i=ownedItem(uid,id);String s=(String)i.get("status");if(!"IN_SALE".equals(s)&&r.getSwapPreference()==SwapPreference.ACCEPTING)throw new DomainException(ErrorCode.ITEM_STATUS_NOT_SWAPPABLE);int version=r.getVersion()==null?(Integer)i.get("version"):r.getVersion();int n=jdbc.update("UPDATE items SET swap_preference=?::swap_preference,version=version+1 WHERE id=? AND seller_id=? AND version=?",r.getSwapPreference().name(),id,uid,version);if(n==0)throw new DomainException(ErrorCode.CONFLICT);return detail(id,uid);}
     @Override public Map<String,Object> occupation(Long uid,Long id,boolean admin){Map<String,Object> i=item(id);if(!admin&&!Objects.equals(uid,i.get("seller_id")))throw new DomainException(ErrorCode.FORBIDDEN);List<Map<String,Object>> rows=jdbc.queryForList("SELECT ref_type,ref_id,occupied_at FROM item_occupations WHERE item_id=? AND released_at IS NULL",id);Map<String,Object> occ=null;if(!rows.isEmpty()){Map<String,Object> row=rows.get(0);occ=new LinkedHashMap<>();occ.put("refType",row.get("ref_type"));occ.put("refId",row.get("ref_id"));occ.put("occupiedAt",row.get("occupied_at"));}Map<String,Object> out=new LinkedHashMap<>();out.put("itemId",id);out.put("itemStatus",i.get("status"));out.put("occupation",occ);return out;}
 
+    // ------------------------------------------------------------------
+    // 切片 3 依赖：占用 / 释放 / 售出（与订单同事务，条件更新保证互斥）
+    // ------------------------------------------------------------------
+
+    @Override public void occupyForOrder(Long itemId, Long orderId, Long actorId) {
+        int n = jdbc.update("UPDATE items SET status='RESERVED', version=version+1, updated_by=? "
+                + "WHERE id=? AND status='IN_SALE' AND deleted_at IS NULL", actorId, itemId);
+        if (n != 1) {
+            String st = rawStatus(itemId);
+            if (st == null) throw new DomainException(ErrorCode.ITEM_NOT_FOUND);
+            if ("SWAPPING".equals(st)) throw new DomainException(ErrorCode.ITEM_RESERVED_BY_SWAP);
+            if ("RESERVED".equals(st)) throw new DomainException(ErrorCode.ITEM_ALREADY_RESERVED);
+            throw new DomainException(ErrorCode.ITEM_NOT_PURCHASABLE);
+        }
+        jdbc.update("INSERT INTO item_occupations(item_id, ref_type, ref_id, created_by, updated_by) "
+                + "VALUES (?, 'ORDER'::occupation_type, ?, ?, ?)", itemId, orderId, actorId, actorId);
+    }
+
+    @Override public void releaseOrderOccupation(Long itemId, Long orderId, Long actorId, String reason) {
+        int n = jdbc.update("UPDATE item_occupations SET released_at=now(), release_reason=?, version=version+1, updated_by=? "
+                + "WHERE item_id=? AND ref_type='ORDER'::occupation_type AND ref_id=? AND released_at IS NULL",
+                reason, actorId, itemId, orderId);
+        if (n == 0) return;
+        jdbc.update("UPDATE items SET status='IN_SALE', version=version+1, updated_by=? "
+                + "WHERE id=? AND status='RESERVED'", actorId, itemId);
+    }
+
+    @Override public void markSold(Long itemId, Long actorId) {
+        jdbc.update("UPDATE items SET status='SOLD', version=version+1, updated_by=? "
+                + "WHERE id=? AND status='RESERVED'", actorId, itemId);
+    }
+
+    private String rawStatus(Long itemId) {
+        try { return jdbc.queryForObject("SELECT status::text FROM items WHERE id=? AND deleted_at IS NULL", String.class, itemId); }
+        catch (org.springframework.dao.EmptyResultDataAccessException ex) { return null; }
+    }
+
     private Map<String,Object> item(Long id){try{return jdbc.queryForMap("SELECT * FROM items WHERE id=? AND deleted_at IS NULL",id);}catch(org.springframework.dao.EmptyResultDataAccessException ex){throw new DomainException(ErrorCode.ITEM_NOT_FOUND);}}
     private Map<String,Object> ownedItem(Long uid,Long id){Map<String,Object> i=item(id);if(!Objects.equals(uid,((Number)i.get("seller_id")).longValue()))throw new DomainException(ErrorCode.FORBIDDEN);return i;}
     private void ensureWritable(Long uid){UserEntity u=users.findById(uid).orElseThrow(()->new DomainException(ErrorCode.USER_NOT_FOUND));if("RESTRICTED".equals(u.getStatus()))throw new DomainException(ErrorCode.USER_RESTRICTED_CANNOT_WRITE);if("ADMIN".equals(u.getRole()))throw new DomainException(ErrorCode.FORBIDDEN);}

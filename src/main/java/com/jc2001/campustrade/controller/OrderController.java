@@ -20,6 +20,7 @@ import com.jc2001.campustrade.dto.response.OrderStatus;
 import com.jc2001.campustrade.dto.response.OrderSummary;
 import com.jc2001.campustrade.dto.response.PaymentResult;
 import com.jc2001.campustrade.dto.response.SubmitOrderResponse;
+import com.jc2001.campustrade.service.OrderService;
 import java.util.List;
 
 // GENERATED FROM openapi.yaml —— 请勿手工修改；契约变更须走 api-freeze.md §4 流程
@@ -38,6 +39,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1")
 public class OrderController {
+
+    private final OrderService orderService;
+
+    public OrderController(OrderService orderService) { this.orderService = orderService; }
 
     /**
      * 提交订单 / 库存预留（FR-303 / FR-304）
@@ -60,7 +65,7 @@ public class OrderController {
             @Parameter(description = "**必填**幂等键（R-17）。由前端生成 UUID v4（假设 A-15），同一逻辑操作重试必须复用同一键。 语义：同用户 + 同键 + 同请求体 → 返回首次结果（IDEM-A，HTTP 200/201）； 同键但请求体不同 → `409 COMMON_IDEMPOTENCY_KEY_REUSED`（E-16）。 记录保留 24 小时（假设 A-08）。") @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey,
             @RequestBody SubmitOrderRequest body
     ) {
-        throw new UnsupportedOperationException("TODO: implement submitOrder");
+        return ResponseEntity.status(201).body(ApiResponse.ok(orderService.submitOrder(idempotencyKey, body)));
     }
 
     /**
@@ -82,7 +87,7 @@ public class OrderController {
             @Parameter(description = "按我的角色过滤") @RequestParam(value = "role", required = false) String role,
             @Parameter(description = "按订单状态过滤，可重复传入") @RequestParam(value = "status", required = false) List<OrderStatus> status
     ) {
-        throw new UnsupportedOperationException("TODO: implement listOrders");
+        return ResponseEntity.ok(ApiResponse.ok(orderService.listOrders(page,size,sort,role,status)));
     }
 
     /**
@@ -100,7 +105,7 @@ public class OrderController {
     public ResponseEntity<ApiResponse<OrderDetail>> getOrderDetail(
             @Parameter(description = "") @PathVariable("orderId") Long orderId
     ) {
-        throw new UnsupportedOperationException("TODO: implement getOrderDetail");
+        return ResponseEntity.ok(ApiResponse.ok(orderService.getOrderDetail(orderId)));
     }
 
     /**
@@ -125,7 +130,7 @@ public class OrderController {
             @Parameter(description = "**必填**幂等键（R-17）。由前端生成 UUID v4（假设 A-15），同一逻辑操作重试必须复用同一键。 语义：同用户 + 同键 + 同请求体 → 返回首次结果（IDEM-A，HTTP 200/201）； 同键但请求体不同 → `409 COMMON_IDEMPOTENCY_KEY_REUSED`（E-16）。 记录保留 24 小时（假设 A-08）。") @RequestHeader(value = "Idempotency-Key", required = true) String idempotencyKey,
             @RequestBody MockPayRequest body
     ) {
-        throw new UnsupportedOperationException("TODO: implement mockPayOrder");
+        return ResponseEntity.ok(ApiResponse.ok(orderService.mockPayOrder(orderId,idempotencyKey,body)));
     }
 
     /**
@@ -148,7 +153,7 @@ public class OrderController {
             @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody CancelOrderRequest body
     ) {
-        throw new UnsupportedOperationException("TODO: implement cancelOrder");
+        return ResponseEntity.ok(ApiResponse.ok(orderService.cancelOrder(orderId,idempotencyKey,body)));
     }
 
     /**
@@ -171,7 +176,7 @@ public class OrderController {
             @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody SelectPickupPointRequest body
     ) {
-        throw new UnsupportedOperationException("TODO: implement selectPickupPoint");
+        return ResponseEntity.ok(ApiResponse.ok(orderService.selectPickupPoint(orderId,idempotencyKey,body)));
     }
 
     /**
@@ -192,7 +197,7 @@ public class OrderController {
             @Parameter(description = "") @PathVariable("orderId") Long orderId,
             @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
-        throw new UnsupportedOperationException("TODO: implement markOrderDelivered");
+        return ResponseEntity.ok(ApiResponse.ok(orderService.markOrderDelivered(orderId,idempotencyKey)));
     }
 
     /**
@@ -213,7 +218,7 @@ public class OrderController {
             @Parameter(description = "") @PathVariable("orderId") Long orderId,
             @Parameter(description = "**可选**幂等键（R-17）。建议携带；未携带时服务端仍以状态前置条件 + 条件更新保证不产生重复副作用。") @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey
     ) {
-        throw new UnsupportedOperationException("TODO: implement confirmOrderReceipt");
+        return ResponseEntity.ok(ApiResponse.ok(orderService.confirmOrderReceipt(orderId,idempotencyKey)));
     }
 
 }
