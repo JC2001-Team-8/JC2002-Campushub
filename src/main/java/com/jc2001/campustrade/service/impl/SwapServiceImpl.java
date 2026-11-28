@@ -168,6 +168,9 @@ public class SwapServiceImpl implements SwapService {
             Map<String, Object> it = itemRow(itemId);
             if (((Number) it.get("seller_id")).longValue() != uid) throw new DomainException(ErrorCode.SWAP_BUNDLE_ITEM_NOT_OWNED);
             requireInSale(it);
+            if (((Number) it.get("trade_zone_id")).longValue() != ((Number) b.get("trade_zone_id")).longValue()) {
+                throw new DomainException(ErrorCode.TRADE_ZONE_MISMATCH);
+            }
             total = total.add((BigDecimal) it.get("estimated_price"));
         }
         int n = jdbc.update("UPDATE swap_bundles SET title=COALESCE(?,title), estimated_total=?::numeric, status='PACKED', "
@@ -491,6 +494,13 @@ public class SwapServiceImpl implements SwapService {
         Map<String, Object> c = codeMap(proposalId);
         if (c == null) throw new DomainException(ErrorCode.SWAP_CODE_NOT_ISSUED);
         if ("VERIFIED".equals(c.get("status"))) throw new DomainException(ErrorCode.SWAP_CODE_ALREADY_VERIFIED);
+        Timestamp expiresAt = (Timestamp) c.get("expires_at");
+        if (expiresAt != null && !expiresAt.toInstant().isAfter(Instant.now())) {
+            // 过期码：标记 EXPIRED（ck_swap_codes_verified_trace 要求 verified_at/verified_by 为空）
+            jdbc.update("UPDATE swap_codes SET status='EXPIRED', version=version+1 WHERE swap_proposal_id=? AND status='ISSUED' AND expires_at <= now()",
+                    proposalId);
+            throw new DomainException(ErrorCode.SWAP_CODE_INVALID, "交换码已过期");
+        }
         if (!String.valueOf(c.get("code")).equals(body.getCode().trim())) throw new DomainException(ErrorCode.SWAP_CODE_INVALID);
 
         int n = jdbc.update("UPDATE swap_codes SET status='VERIFIED', verified_at=now(), verified_by=?, version=version+1, updated_by=? "
@@ -544,7 +554,9 @@ public class SwapServiceImpl implements SwapService {
     private Review createReviewOnce(Long uid, Long proposalId, CreateReviewRequest body) {
         ensureNotRestricted(uid);
         Map<String, Object> p = proposalRow(proposalId);
-        requireParticipant(p, uid);
+        boolean party = ((Number) p.get("proposer_id")).longValue() == uid.longValue()
+                || ((Number) p.get("target_id")).longValue() == uid.longValue();
+        if (!party) throw new DomainException(ErrorCode.FORBIDDEN);
         if (!"COMPLETED".equals(p.get("status"))) throw new DomainException(ErrorCode.REVIEW_TRANSACTION_NOT_COMPLETED);
         Timestamp completed = (Timestamp) p.get("completed_at");
         if (completed == null || completed.toInstant().plus(REVIEW_WINDOW).isBefore(Instant.now())) {

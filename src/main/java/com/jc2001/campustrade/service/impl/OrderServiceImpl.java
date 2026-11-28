@@ -412,7 +412,14 @@ public class OrderServiceImpl implements OrderService {
         d.setCancelNote((String) o.get("cancel_note"));
         if (o.get("review_status") != null) d.setReviewStatus(ReviewStatus.valueOf((String) o.get("review_status")));
         d.setReviewDeadline(instant(o.get("review_deadline")));
-        d.setCanReview(Boolean.TRUE.equals(o.get("can_review")));
+        boolean completed = "COMPLETED".equals(o.get("status"));
+        Timestamp reviewDeadline = (Timestamp) o.get("review_deadline");
+        String reviewStatus = (String) o.get("review_status");
+        boolean windowOpen = reviewDeadline != null && reviewDeadline.toInstant().isAfter(Instant.now());
+        boolean alreadyReviewed = "BUYER".equals(d.getRole())
+                ? ("BUYER_REVIEWED".equals(reviewStatus) || "BOTH_REVIEWED".equals(reviewStatus))
+                : ("SELLER_REVIEWED".equals(reviewStatus) || "BOTH_REVIEWED".equals(reviewStatus));
+        d.setCanReview(completed && windowOpen && !alreadyReviewed && (buyerId.equals(viewerId) || sellerId.equals(viewerId)));
         d.setVersion(((Number) o.get("version")).intValue());
         d.setCreatedAt(instant(o.get("created_at")));
         if (withItems) d.setItems(orderItems(orderId));
